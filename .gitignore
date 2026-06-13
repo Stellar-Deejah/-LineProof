@@ -1,0 +1,14 @@
+.DS_Store
+Thumbs.db
+node_modules
+dist
+target
+.env
+.env.*
+!.env.example
+*.local
+*.log
+.vscode
+.idea
+coverage
+.nyc_output

@@ -1,0 +1,43 @@
+services:
+  stellar-core:
+    image: stellar/stellar-core:latest
+    container_name: stellar-core
+    ports:
+      - "8000:8000"
+      - "8001:8000"
+      - "11625:11625"
+    environment:
+      - STELLAR_CORE_DATABASE=postgresql://stellar:passw0rd@postgres/stellar
+      - STELLAR_CORE_QUORUM=1
+      - STELLAR_CORE_NETWORK_PASSPHRASE=Standalone Network ; February 2017
+    volumes:
+      - ./stellar/stellar-core.cfg:/etc/stellar/stellar-core.cfg
+    depends_on:
+      - postgres
+
+  soroban-rpc:
+    image: stellar/soroban-rpc:latest
+    container_name: soroban-rpc
+    ports:
+      - "8001:8000"
+    environment:
+      - STELLAR_NETWORK_PASSPHRASE=Standalone Network ; February 2017
+      - FRIENDBOT_URL=http://stellar-core:8000/friendbot
+      - STELLAR_HORizon_URL=http://stellar-core:8000
+      - SOROBAN_RPC_PORT=8000
+      - SOROBAN_RPC_LOG_LEVEL=debug
+    depends_on:
+      - stellar-core
+
+  postgres:
+    image: postgres:14
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=stellar
+      - POSTGRES_PASSWORD=passw0rd
+      - POSTGRES_DB=stellar
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

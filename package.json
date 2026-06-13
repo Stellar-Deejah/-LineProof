@@ -1,0 +1,18 @@
+{
+  "name": "lineproof",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kitchen-sink working directory for LineProof project",
+  "scripts": {
+    "build": "pnpm run build:contracts && pnpm run build:sdk",
+    "build:contracts": "cd contracts && cargo build --target wasm32-unknown-unknown --release",
+    "build:sdk": "pnpm --filter @lineproof/sdk build",
+    "test": "pnpm run test:contracts && pnpm run test:sdk",
+    "test:contracts": "cd contracts && cargo test",
+    "test:sdk": "pnpm --filter @lineproof/sdk test",
+    "lint": "pnpm --filter @lineproof/sdk lint && cd contracts && cargo fmt -- --check && cargo clippy",
+    "format": "pnpm run format:contracts && pnpm run format:sdk",
+    "format:contracts": "cd contracts && cargo fmt",
+    "format:sdk": "pnpm --filter @lineproof/sdk format"
+  }
+}

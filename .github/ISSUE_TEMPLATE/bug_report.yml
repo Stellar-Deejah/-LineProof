@@ -1,0 +1,41 @@
+name: Bug Report
+description: Report a defect or unexpected behavior in LineProof
+title: '[bug] '
+labels: bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill out this form as completely as possible.
+  - type: input
+    id: version
+    attributes:
+      label: LineProof Version
+      description: What version of the protocol or SDK are you using?
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps or code snippet to reproduce the behavior.
+      placeholder: |
+        1. Deploy factory
+        2. Call `deploy_queue` with ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs / Tx Hash
+      description: Paste relevant logs or transaction hashes here.
+      render: shell

@@ -1,0 +1,124 @@
+import {
+  Network,
+  Networks,
+  TransactionBuilder,
+  Operation,
+  Asset,
+  Keypair,
+  Address as StellarAddress,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
+
+export interface LineProofConfig {
+  rpcServerUrl: string;
+  networkPassphrase: string;
+  privateKey?: string;
+  publicKey?: string;
+  timeoutMs?: number;
+  maxRetries?: number;
+}
+
+export interface QueueDeploymentParams {
+  slug: string;
+  name: string;
+  version: number;
+  maxPositions: number;
+  enrollmentOpenAt: number;
+  enrollmentCloseAt: number;
+  advancementRule: AdvancementRule;
+  escrowRequired: boolean;
+  escrowAsset?: string;
+  escrowAmountReadable?: number;
+  wasmHash?: string;
+}
+
+export enum AdvancementRule {
+  FIRST_IN_FIRST_OUT = 'FIFO',
+  PRIORITY_TIER = 'PRIORITY',
+  VERIFIABLE_RANDOMNESS = 'VRF',
+}
+
+export enum EscrowStatus {
+  /// Escrow deposit is active and held
+  Active = 'active',
+  /// Funds released to organizer
+  Released = 'released',
+  /// Funds refunded to participant
+  Refunded = 'refunded',
+  /// Escrow expired and funds recoverable
+  Expired = 'expired',
+}
+
+export interface Position {
+  positionId: bigint;
+  enrolledAt: number;
+  identity: string;
+  status: PositionStatus;
+  advancedAt?: number;
+}
+
+export enum PositionStatus {
+  Pending = 'pending',
+  Advanced = 'advanced',
+  Expired = 'expired',
+  Cancelled = 'cancelled',
+}
+
+export interface QueueMetadata {
+  contractId: string;
+  slug: string;
+  name: string;
+  owner: string;
+  version: number;
+  active: boolean;
+  deployedAt: number;
+}
+
+export interface LineProofEvent {
+  type: string;
+  queueSlug: string;
+  positionId?: number;
+  identity?: string;
+  timestamp: number;
+  data?: Record<string, unknown>;
+}
+
+export class SDKError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public details?: Record<string, unknown>,
+  ) {
+    super(`[${code}] ${message}`);
+    this.name = 'LineProofSDKError';
+  }
+}
+
+export const DEFAULT_LINEPROOF_CONFIG = {
+  rpcServerUrl: 'http://localhost:8000/soroban/rpc',
+  networkPassphrase: Networks.TESTNET,
+  timeoutMs: 30_000,
+  maxRetries: 3,
+};
+
+export function require(key: string): Keypair {
+  return Keypair.fromSecret(key);
+}
+
+export function generateKeypair(): Keypair {
+  return Keypair.random();
+}
+
+export function validateAddress(address: string): void {
+  if (!StellarAddress.isValid(address)) {
+    throw new SDKError('INVALID_ADDRESS', `Invalid Stellar address: ${address}`);
+  }
+}
+
+export function isNetworkPassphrase(network: string): network is Network {
+  return (
+    network === Networks.TESTNET
+    || network === Networks.PUBLIC
+    || network === Networks.STANDALONE
+  );
+}

@@ -1,0 +1,4 @@
+# Soroban-SDK compatibility
+# See https://soroban.stellar.org/docs/reference/sdk-versioning
+[soroban]
+version = "22.0"
