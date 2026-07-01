@@ -1,43 +1,77 @@
+version: "3.9"
+
 services:
   stellar-core:
-    image: stellar/stellar-core:latest
-    container_name: stellar-core
+    image: stellar/quickstart:latest
+    platform: linux/amd64
     ports:
       - "8000:8000"
-      - "8001:8000"
       - "11625:11625"
+      - "11626:11626"
     environment:
-      - STELLAR_CORE_DATABASE=postgresql://stellar:passw0rd@postgres/stellar
-      - STELLAR_CORE_QUORUM=1
-      - STELLAR_CORE_NETWORK_PASSPHRASE=Standalone Network ; February 2017
-    volumes:
-      - ./stellar/stellar-core.cfg:/etc/stellar/stellar-core.cfg
-    depends_on:
-      - postgres
+      - NETWORK=local
+    command: --local --enable-soroban-rpc
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
   soroban-rpc:
     image: stellar/soroban-rpc:latest
-    container_name: soroban-rpc
-    ports:
-      - "8001:8000"
-    environment:
-      - STELLAR_NETWORK_PASSPHRASE=Standalone Network ; February 2017
-      - FRIENDBOT_URL=http://stellar-core:8000/friendbot
-      - STELLAR_HORizon_URL=http://stellar-core:8000
-      - SOROBAN_RPC_PORT=8000
-      - SOROBAN_RPC_LOG_LEVEL=debug
+    platform: linux/amd64
     depends_on:
-      - stellar-core
+      stellar-core:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      - SOROBAN_RPC_STELLAR_CORE_URL=http://stellar-core:11626
+      - SOROBAN_RPC_NETWORK_PASSPHRASE=Standalone Network ; February 2017
+      - SOROBAN_RPC_FRIENDBOT_URL=http://stellar-core:8000/friendbot
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   postgres:
-    image: postgres:14
-    container_name: postgres
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
     environment:
-      - POSTGRES_USER=stellar
-      - POSTGRES_PASSWORD=passw0rd
-      - POSTGRES_DB=stellar
+      POSTGRES_USER: lineproof
+      POSTGRES_PASSWORD: lineproof
+      POSTGRES_DB: lineproof
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lineproof"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    depends_on:
+      soroban-rpc:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      SOROBAN_RPC_URL: http://soroban-rpc:8080
+      STELLAR_NETWORK: STANDALONE
+      DATABASE_URL: postgres://lineproof:lineproof@postgres:5432/lineproof
+    volumes:
+      - ../backend:/app
+      - /app/node_modules
 
 volumes:
-  postgres-data:
+  postgres_data:
