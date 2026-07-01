@@ -29,6 +29,7 @@ pub struct EscrowConfig {
     pub min_deposit: i128,
     pub max_deposit: i128,
     pub hold_period_days: u64,
+    pub admin: Address,
 }
 
 #[contract]
@@ -107,12 +108,17 @@ impl Escrow for EscrowImpl {
     }
 
     fn expire(env: Env, identity: Address, queue_id: Symbol) {
-        let record = Self::load_record(&env, &identity, &queue_id);
+        let mut record = Self::load_record(&env, &identity, &queue_id);
         if env.ledger().timestamp() < record.expires_at {
             panic!("not expired");
         }
-        // In a full implementation, this would trigger escrow transfer out of contract ownership.
-        // On-chain emit provides auditable proof of expiration action.
+        if !matches!(record.status, EscrowStatus::Active) {
+            panic!("escrow not active");
+        }
+        record.status = EscrowStatus::Expired;
+        record.released_at = Some(env.ledger().timestamp());
+        let key = Self::record_key(&env, &identity, &queue_id);
+        env.storage().persistent().set(&key, &record);
         emit(&env, Symbol::new(&env, "Expired"), queue_id, &identity, record.amount);
     }
 
