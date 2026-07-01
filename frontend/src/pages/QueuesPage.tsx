@@ -1,80 +1,66 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ExternalLink } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import { useQueues } from '../hooks/useQueues';
+import QueueStatusBadge from '../components/QueueStatusBadge';
+import ProgressBar from '../components/ProgressBar';
+import Spinner from '../components/Spinner';
+import EmptyState from '../components/EmptyState';
 
-export type Queue = {
-  id: string;
-  name: string;
-  status: 'Draft' | 'Open' | 'Closed';
-  enrolled: number;
-  maxPositions: number;
-  advancementRule: 'FIFO' | 'Priority' | 'VerifiableRandomness';
-};
+export default function QueuesPage() {
+  const { queues, loading, error } = useQueues();
 
-const MOCK_QUEUES: Queue[] = [
-  {
-    id: 'sneaker-drop-001',
-    name: 'Sneaker Drop #001',
-    status: 'Open',
-    enrolled: 187,
-    maxPositions: 250,
-    advancementRule: 'FIFO',
-  },
-  {
-    id: 'visa-appointment-001',
-    name: 'Visa Appointment Batch A',
-    status: 'Closed',
-    enrolled: 120,
-    maxPositions: 120,
-    advancementRule: 'FIFO',
-  },
-];
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-slate-600">
+        <Spinner size="sm" /> Loading queues…
+      </div>
+    );
+  }
 
-export default function QueueListPage() {
-  const [queues, setQueues] = useState<Queue[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const load = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      setQueues(MOCK_QUEUES);
-      setLoading(false);
-    };
-    load();
-  }, []);
+  if (error) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        Failed to load queues: {error}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Queues</h1>
-          <p className="mt-1 text-sm text-slate-600">Browse public waiting lists and verify on-chain enrollment proofs.</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">Queues</h1>
+        <p className="mt-1 text-sm text-slate-600">Browse public waiting lists and verify on-chain enrollment proofs.</p>
       </div>
 
-      {loading ? (
-        <p className="text-sm text-slate-600">Loading queues...</p>
+      {queues.length === 0 ? (
+        <EmptyState title="No queues found" description="No public queues are available right now." />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {queues.map((queue) => (
-            <Link
-              key={queue.id}
-              to={`/queues/${queue.id}`}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300"
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-slate-900">{queue.name}</h3>
-                <ExternalLink className="h-4 w-4 text-slate-500" />
-              </div>
-              <p className="mt-2 text-sm text-slate-600">{queue.enrolled} / {queue.maxPositions} enrolled</p>
-              <div className="mt-4 flex items-center justify-between text-xs text-slate-600">
-                <span className="rounded-full border border-slate-200 px-2 py-1">{queue.status}</span>
-                <span className="inline-flex items-center gap-1">
-                  View queue <ArrowRight className="h-3 w-3" />
-                </span>
-              </div>
-            </Link>
-          ))}
+          {queues.map((queue) => {
+            const pct = queue.maxPositions > 0
+              ? Math.round((queue.enrolled / queue.maxPositions) * 100)
+              : 0;
+            return (
+              <Link
+                key={queue.id}
+                to={`/queues/${queue.id}`}
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-base font-semibold text-slate-900">{queue.name}</h3>
+                  <QueueStatusBadge status={queue.status as any} />
+                </div>
+                <p className="mt-1 text-sm text-slate-500 line-clamp-2">{queue.description}</p>
+                <ProgressBar value={pct} label={`${queue.enrolled} / ${queue.maxPositions} enrolled`} className="mt-4" />
+                <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+                  <span>{queue.advancementRule}</span>
+                  <span className="inline-flex items-center gap-1 font-medium text-slate-700">
+                    View <ArrowRight className="h-3 w-3" />
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
