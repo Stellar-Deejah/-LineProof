@@ -3,6 +3,7 @@ import HomePage from './pages/HomePage';
 import QueuePage from './pages/QueuePage';
 import QueuesPage from './pages/QueuesPage';
 import DashboardPage from './pages/DashboardPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
   const navClass = ({ isActive }: { isActive: boolean }) =>
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/queues" element={<QueuesPage />} />
           <Route path="/queues/:id" element={<QueuePage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
       <footer className="mt-16 border-t border-slate-200 bg-white">
