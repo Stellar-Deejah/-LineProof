@@ -18,6 +18,14 @@ export interface LineProofConfig {
   maxRetries?: number;
 }
 
+/** Convenience enum so callers don't need to import from @stellar/stellar-sdk */
+export enum NetworkPassphrase {
+  TESTNET = 'Test SDF Network ; September 2015',
+  MAINNET = 'Public Global Stellar Network ; September 2015',
+  FUTURENET = 'Test SDF Future Network ; October 2022',
+  STANDALONE = 'Standalone Network ; February 2017',
+}
+
 export interface QueueDeploymentParams {
   slug: string;
   name: string;
@@ -36,6 +44,14 @@ export enum AdvancementRule {
   FIRST_IN_FIRST_OUT = 'FIFO',
   PRIORITY_TIER = 'PRIORITY',
   VERIFIABLE_RANDOMNESS = 'VRF',
+}
+
+export enum QueueStatus {
+  Draft = 'Draft',
+  EnrollmentOpen = 'EnrollmentOpen',
+  EnrollmentClosed = 'EnrollmentClosed',
+  AdvancementActive = 'AdvancementActive',
+  Closed = 'Closed',
 }
 
 export enum EscrowStatus {
@@ -72,6 +88,27 @@ export interface QueueMetadata {
   version: number;
   active: boolean;
   deployedAt: number;
+  status?: QueueStatus;
+}
+
+export interface EnrollmentRecord {
+  queueId: string;
+  identity: string;
+  enrolledAt: number;
+  proofHash: string;
+  duplicateCount: number;
+  finalized: boolean;
+}
+
+export interface EscrowRecord {
+  queueId: string;
+  identity: string;
+  amount: bigint;
+  asset: string;
+  status: EscrowStatus;
+  createdAt: number;
+  expiresAt: number;
+  releasedAt?: number;
 }
 
 export interface LineProofEvent {
@@ -120,5 +157,6 @@ export function isNetworkPassphrase(network: string): network is Network {
     network === Networks.TESTNET
     || network === Networks.PUBLIC
     || network === Networks.STANDALONE
+    || network === Networks.FUTURENET
   );
 }
