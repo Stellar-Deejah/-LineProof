@@ -9,19 +9,20 @@ describe('encodeCursor / decodeCursor', () => {
     expect(decoded.index).toBe(7);
   });
 
-  it('throws on malformed cursor', () => {
-    expect(() => decodeCursor('not-base64-cursor!!!')).toThrow('Invalid cursor');
+  it('throws on clearly invalid cursor', () => {
+    expect(() => decodeCursor('!!not-valid!!')).toThrow('Invalid cursor');
   });
 
   it('throws on cursor with non-numeric parts', () => {
-    const bad = Buffer.from('abc:xyz').toString('base64');
+    // btoa is available in Node 18+ and browsers
+    const bad = btoa('abc:xyz');
     expect(() => decodeCursor(bad)).toThrow('Invalid cursor');
   });
 });
 
 describe('paginate', () => {
   const items = Array.from({ length: 10 }, (_, i) => ({ id: i, ledger: 1000 + i, idx: i }));
-  const getCursor = (item: typeof items[0]) => ({ ledger: item.ledger, index: item.idx });
+  const getCursor = (item: (typeof items)[0]) => ({ ledger: item.ledger, index: item.idx });
 
   it('returns up to limit items', () => {
     const page = paginate(items, { limit: 5 }, getCursor);

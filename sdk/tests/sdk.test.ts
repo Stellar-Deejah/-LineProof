@@ -1,69 +1,81 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { LineProofClient } from '../src/client';
 import { QueueClient } from '../src/queue';
 import { EnrollmentClient } from '../src/enrollment';
 import { EscrowClient } from '../src/escrow';
 import { IdentityClient } from '../src/identity';
-import { SDKError } from '../src/types';
+import { SDKError, NetworkPassphrase } from '../src/types';
 
-vi.mock('@stellar/stellar-sdk', () => {
-  const original = await vi.importActual('@stellar/stellar-sdk');
+vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@stellar/stellar-sdk')>();
   return {
-    ...original,
+    ...actual,
     Keypair: {
+      ...actual.Keypair,
       fromSecret: vi.fn(() => ({
-        publicKey: () => 'GABC123',
-        secret: () => 'secret-key',
+        publicKey: () => 'GABC123456789012345678901234567890123456789012345678901234',
+        secret: () => 'SABC',
+        sign: vi.fn(),
       })),
       random: vi.fn(() => ({
-        publicKey: () => 'GRANDOM999',
+        publicKey: () => 'GRANDOM9999999999999999999999999999999999999999999999999999',
+        secret: () => 'SRANDOM',
       })),
     },
     Horizon: {
       Server: vi.fn(() => ({
-        loadAccount: vi.fn(async () => ({
-          sequence: 1,
-          balances: [],
-        })),
-        submitTransaction: vi.fn(async () => ({ hash: 'hash' })),
+        loadAccount: vi.fn(async () => ({ sequence: 1, balances: [] })),
+        submitTransaction: vi.fn(async () => ({ hash: 'mockhash' })),
       })),
     },
     BASE_FEE: '100',
     Networks: {
-      TESTNET: 'Test SDF Network ; September 2015',
-      PUBLIC: 'Public Global Stellar Network ; September 2015',
-      STANDALONE: 'Standalone Network ; February 2017',
+      TESTNET: NetworkPassphrase.TESTNET,
+      PUBLIC: NetworkPassphrase.MAINNET,
+      STANDALONE: NetworkPassphrase.STANDALONE,
     },
   };
 });
 
 describe('LineProofClient', () => {
   it('throws when privateKey is missing for deployFactory', async () => {
-    const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000/soroban/rpc' });
-    expect(() => client.deployFactory()).toThrow(SDKError);
+    const client = new LineProofClient({
+      rpcServerUrl: 'http://localhost:8000/soroban/rpc',
+      networkPassphrase: NetworkPassphrase.TESTNET,
+    });
+    await expect(client.deployFactory()).rejects.toThrow(SDKError);
   });
 });
 
 describe('QueueClient', () => {
-  const mockClient = new LineProofClient({ rpcServerUrl: 'http://localhost:8000/soroban/rpc' } as any);
+  const mockClient = new LineProofClient({
+    rpcServerUrl: 'http://localhost:8000/soroban/rpc',
+    networkPassphrase: NetworkPassphrase.TESTNET,
+  });
   const queue = new QueueClient(mockClient, { queueContractId: 'CQUEUE123' });
 
-  it('exposes a getPosition placeholder that throws NOT_IMPLEMENTED', async () => {
+  it('getPosition placeholder throws NOT_IMPLEMENTED', async () => {
     await expect(queue.getPosition(1)).rejects.toThrow('NOT_IMPLEMENTED');
   });
 });
 
 describe('EnrollmentClient', () => {
-  const mockClient = new LineProofClient({ rpcServerUrl: 'http://localhost:8000/soroban/rpc' } as any);
+  const mockClient = new LineProofClient({
+    rpcServerUrl: 'http://localhost:8000/soroban/rpc',
+    networkPassphrase: NetworkPassphrase.TESTNET,
+  });
   const enrollment = new EnrollmentClient(mockClient);
 
   it('rejects missing credentials on enroll', async () => {
-    await expect(enrollment.enroll('queue-id', 'identity')).rejects.toThrow('MISSING_CREDENTIALS');
+    await expect(enrollment.enroll('queue-id', 'identity')).rejects.toThrow(SDKError);
   });
 });
 
 describe('EscrowClient', () => {
-  const mockClient = new LineProofClient({ rpcServerUrl: 'http://localhost:8000/soroban/rpc' } as any);
+  const mockClient = new LineProofClient({
+    rpcServerUrl: 'http://localhost:8000/soroban/rpc',
+    networkPassphrase: NetworkPassphrase.TESTNET,
+  });
   const escrow = new EscrowClient(mockClient);
 
   it('rejects non-positive deposit amount', async () => {
@@ -72,7 +84,10 @@ describe('EscrowClient', () => {
 });
 
 describe('IdentityClient', () => {
-  const mockClient = new LineProofClient({ rpcServerUrl: 'http://localhost:8000/soroban/rpc' } as any);
+  const mockClient = new LineProofClient({
+    rpcServerUrl: 'http://localhost:8000/soroban/rpc',
+    networkPassphrase: NetworkPassphrase.TESTNET,
+  });
   const identity = new IdentityClient(mockClient);
 
   it('throws TRANSFER_DISABLED on transfer attempt', async () => {

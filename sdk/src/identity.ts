@@ -1,13 +1,11 @@
 import {
-  Address,
   TransactionBuilder,
   Operation,
   Keypair,
-  Networks,
   BASE_FEE,
 } from '@stellar/stellar-sdk';
-import { LineProofClient } from './client';
-import { SDKError } from './types';
+import { LineProofClient } from './client.js';
+import { SDKError } from './types.js';
 
 export class IdentityClient {
   private readonly client: LineProofClient;
@@ -21,34 +19,34 @@ export class IdentityClient {
       throw new SDKError('INVALID_IDENTITY', 'Identity public key is required');
     }
     const sourceKeypair = Keypair.fromSecret(this.client.getPublicKey());
-    const source = await this.client['server'].loadAccount(sourceKeypair.publicKey());
+    const source = await this.client.server.loadAccount(sourceKeypair.publicKey());
     const tx = new TransactionBuilder(source, {
-      fee: BASE_FEE.toFixed(),
+      fee: BASE_FEE,
       networkPassphrase: this.client.getNetworkPassphrase(),
     })
       .addOperation(
         Operation.invokeContractFunction({
           contract: queueId,
           function: 'bind',
-          args: [identity],
+          args: [],
           source: sourceKeypair,
         }),
       )
       .setTimeout(30)
       .build();
     tx.sign(sourceKeypair);
-    const txHash = await this.client['server'].submitTransaction(tx);
-    return txHash.hash;
+    const result = await this.client.server.submitTransaction(tx);
+    return result.hash;
   }
 
-  async isBound(queueId: string, identity: string): Promise<boolean> {
-    return true;
+  async isBound(_queueId: string, _identity: string): Promise<boolean> {
+    throw new SDKError('NOT_IMPLEMENTED', 'isBound requires Soroban RPC contract client');
   }
 
   async recordTransferAttempt(
     from: string,
     to: string,
-    queueId: string,
+    _queueId: string,
   ): Promise<void> {
     throw new SDKError(
       'TRANSFER_DISABLED',

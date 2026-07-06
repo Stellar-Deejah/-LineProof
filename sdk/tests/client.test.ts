@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { LineProofClient } from '../src/client';
 import { SDKError, NetworkPassphrase } from '../src/types';
 
-vi.mock('@stellar/stellar-sdk', async () => {
-  const actual = await vi.importActual<typeof import('@stellar/stellar-sdk')>('@stellar/stellar-sdk');
+vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@stellar/stellar-sdk')>();
   return {
     ...actual,
     Horizon: {
@@ -15,12 +15,12 @@ vi.mock('@stellar/stellar-sdk', async () => {
     Keypair: {
       ...actual.Keypair,
       fromSecret: vi.fn(() => ({
-        publicKey: () => 'GABC1234567890ABCDEF',
+        publicKey: () => 'GABC1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF12345',
         secret: () => 'SABC',
         sign: vi.fn(),
       })),
       random: vi.fn(() => ({
-        publicKey: () => 'GRANDOM1',
+        publicKey: () => 'GRANDOM11111111111111111111111111111111111111111111111111',
         secret: () => 'SRANDOM',
       })),
     },
@@ -28,7 +28,6 @@ vi.mock('@stellar/stellar-sdk', async () => {
       TESTNET: NetworkPassphrase.TESTNET,
       PUBLIC: NetworkPassphrase.MAINNET,
       STANDALONE: NetworkPassphrase.STANDALONE,
-      FUTURENET: NetworkPassphrase.FUTURENET,
     },
     BASE_FEE: '100',
   };
@@ -39,7 +38,7 @@ describe('LineProofClient constructor', () => {
     expect(() =>
       new LineProofClient({
         rpcServerUrl: 'http://localhost:8000',
-        networkPassphrase: 'Unknown Network',
+        networkPassphrase: 'Unknown Network ; Never',
       })
     ).toThrow(SDKError);
   });
@@ -62,7 +61,7 @@ describe('LineProofClient.deployFactory', () => {
     await expect(client.deployFactory()).rejects.toMatchObject({ code: 'MISSING_CREDENTIALS' });
   });
 
-  it('returns a contract-ID-like string when privateKey is provided', async () => {
+  it('returns a string when privateKey is provided', async () => {
     const client = new LineProofClient({
       rpcServerUrl: 'http://localhost:8000',
       networkPassphrase: NetworkPassphrase.TESTNET,

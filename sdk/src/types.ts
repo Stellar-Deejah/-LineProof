@@ -1,13 +1,4 @@
-import {
-  Network,
-  Networks,
-  TransactionBuilder,
-  Operation,
-  Asset,
-  Keypair,
-  Address as StellarAddress,
-  BASE_FEE,
-} from '@stellar/stellar-sdk';
+import { Networks, Keypair, Address as StellarAddress } from '@stellar/stellar-sdk';
 
 export interface LineProofConfig {
   rpcServerUrl: string;
@@ -55,13 +46,9 @@ export enum QueueStatus {
 }
 
 export enum EscrowStatus {
-  /// Escrow deposit is active and held
   Active = 'active',
-  /// Funds released to organizer
   Released = 'released',
-  /// Funds refunded to participant
   Refunded = 'refunded',
-  /// Escrow expired and funds recoverable
   Expired = 'expired',
 }
 
@@ -138,11 +125,7 @@ export const DEFAULT_LINEPROOF_CONFIG = {
   maxRetries: 3,
 };
 
-export function require(key: string): Keypair {
-  return Keypair.fromSecret(key);
-}
-
-export function generateKeypair(): Keypair {
+export function generateKeypair(): ReturnType<typeof Keypair.random> {
   return Keypair.random();
 }
 
@@ -152,11 +135,12 @@ export function validateAddress(address: string): void {
   }
 }
 
-export function isNetworkPassphrase(network: string): network is Network {
+export function isNetworkPassphrase(network: string): boolean {
   return (
-    network === Networks.TESTNET
-    || network === Networks.PUBLIC
-    || network === Networks.STANDALONE
-    || network === Networks.FUTURENET
+    network === Networks.TESTNET ||
+    network === Networks.PUBLIC ||
+    network === Networks.STANDALONE ||
+    network === (Networks as Record<string, string>)['FUTURENET'] ||
+    Object.values(NetworkPassphrase).includes(network as NetworkPassphrase)
   );
 }

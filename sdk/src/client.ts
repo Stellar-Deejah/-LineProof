@@ -1,22 +1,17 @@
 import {
-  Network,
   Networks,
-  TransactionBuilder,
-  Operation,
   Keypair,
-  Address as StellarAddress,
-  BASE_FEE,
   Horizon,
 } from '@stellar/stellar-sdk';
-import { LineProofConfig, DEFAULT_LINEPROOF_CONFIG, SDKError } from './types';
+import { LineProofConfig, DEFAULT_LINEPROOF_CONFIG, SDKError, isNetworkPassphrase } from './types.js';
 
 export class LineProofClient {
-  private readonly server: Horizon.Server;
-  private readonly networkPassphrase: Network;
+  readonly server: Horizon.Server;
+  readonly networkPassphrase: string;
   private readonly sourceSecret?: string;
   private readonly sourcePublic?: string;
-  private readonly timeoutMs: number;
-  private readonly maxRetries: number;
+  readonly timeoutMs: number;
+  readonly maxRetries: number;
 
   private factoryContractId?: string;
 
@@ -27,11 +22,15 @@ export class LineProofClient {
     }
     this.networkPassphrase = resolved.networkPassphrase;
     this.sourceSecret = resolved.privateKey;
-    this.sourcePublic = resolved.publicKey?.trim() || this.sourceSecret
-      ? Keypair.fromSecret(this.sourceSecret).publicKey()
-      : undefined;
     this.timeoutMs = resolved.timeoutMs ?? DEFAULT_LINEPROOF_CONFIG.timeoutMs;
     this.maxRetries = resolved.maxRetries ?? DEFAULT_LINEPROOF_CONFIG.maxRetries;
+
+    if (resolved.privateKey) {
+      this.sourcePublic = resolved.publicKey?.trim() || Keypair.fromSecret(resolved.privateKey).publicKey();
+    } else {
+      this.sourcePublic = resolved.publicKey?.trim();
+    }
+
     this.server = new Horizon.Server(resolved.rpcServerUrl.replace(/\/rpc.*/, ''));
   }
 
@@ -40,7 +39,7 @@ export class LineProofClient {
       throw new SDKError('MISSING_CREDENTIALS', 'privateKey is required to deploy');
     }
     const keypair = Keypair.fromSecret(this.sourceSecret);
-    const account = await this.server.loadAccount(keypair.publicKey());
+    await this.server.loadAccount(keypair.publicKey());
     const contractId = 'C' + Keypair.random().publicKey().slice(1);
     this.factoryContractId = contractId;
     return contractId;

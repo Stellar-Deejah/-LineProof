@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { assertValidAddress, toStroops, fromStroops, nowSeconds, daysFromNow, truncateAddress } from '../src/utils';
+import {
+  assertValidAddress,
+  toStroops,
+  fromStroops,
+  nowSeconds,
+  daysFromNow,
+  truncateAddress,
+  generateTestKeypair,
+} from '../src/utils';
 import { SDKError } from '../src/types';
 
 describe('assertValidAddress', () => {
@@ -60,5 +68,23 @@ describe('truncateAddress', () => {
 
   it('returns short addresses unchanged', () => {
     expect(truncateAddress('GABC', 6)).toBe('GABC');
+  });
+});
+
+describe('generateTestKeypair', () => {
+  it('returns a publicKey starting with G', () => {
+    const kp = generateTestKeypair();
+    expect(kp.publicKey).toMatch(/^G/);
+  });
+
+  it('returns a secretKey starting with S', () => {
+    const kp = generateTestKeypair();
+    expect(kp.secretKey).toMatch(/^S/);
+  });
+
+  it('returns different keypairs on each call', () => {
+    const kp1 = generateTestKeypair();
+    const kp2 = generateTestKeypair();
+    expect(kp1.publicKey).not.toBe(kp2.publicKey);
   });
 });

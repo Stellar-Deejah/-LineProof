@@ -3,11 +3,9 @@ import {
   SDKError,
   validateAddress,
   isNetworkPassphrase,
-  generateKeypair,
   NetworkPassphrase,
   QueueStatus,
   EscrowStatus,
-  PositionStatus,
   AdvancementRule,
 } from '../src/types';
 
@@ -22,6 +20,16 @@ describe('SDKError', () => {
   it('accepts optional details', () => {
     const err = new SDKError('ERR', 'msg', { key: 'value' });
     expect(err.details).toEqual({ key: 'value' });
+  });
+});
+
+describe('validateAddress', () => {
+  it('does not throw for a valid G-prefixed key', () => {
+    expect(() => validateAddress('G' + 'A'.repeat(55))).not.toThrow();
+  });
+
+  it('throws SDKError for an invalid address', () => {
+    expect(() => validateAddress('INVALID')).toThrow(SDKError);
   });
 });
 

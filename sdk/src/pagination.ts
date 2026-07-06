@@ -22,10 +22,14 @@ export interface Page<T> {
 
 /**
  * Encodes a ledger sequence number + event index into an opaque cursor string.
- * Format: base64(ledger:index)
+ * Format: base64url(ledger:index)
  */
 export function encodeCursor(ledger: number, index: number): string {
-  return Buffer.from(`${ledger}:${index}`).toString('base64');
+  const raw = `${ledger}:${index}`;
+  // Use btoa for browser + Node 16+ compatibility; avoid Buffer dependency
+  return typeof btoa !== 'undefined'
+    ? btoa(raw)
+    : Buffer.from(raw).toString('base64');
 }
 
 /**
@@ -34,8 +38,10 @@ export function encodeCursor(ledger: number, index: number): string {
  */
 export function decodeCursor(cursor: string): { ledger: number; index: number } {
   try {
-    const decoded = Buffer.from(cursor, 'base64').toString('utf8');
-    const [ledgerStr, indexStr] = decoded.split(':');
+    const raw = typeof atob !== 'undefined'
+      ? atob(cursor)
+      : Buffer.from(cursor, 'base64').toString('utf8');
+    const [ledgerStr, indexStr] = raw.split(':');
     const ledger = parseInt(ledgerStr, 10);
     const index = parseInt(indexStr, 10);
     if (isNaN(ledger) || isNaN(index)) throw new Error('NaN');
@@ -57,8 +63,9 @@ export function paginate<T>(
   const sliced = items.slice(0, limit);
   const hasMore = items.length > limit;
   const lastItem = sliced[sliced.length - 1];
-  const nextCursor = hasMore && lastItem
-    ? encodeCursor(getCursor(lastItem).ledger, getCursor(lastItem).index + 1)
-    : undefined;
+  const nextCursor =
+    hasMore && lastItem
+      ? encodeCursor(getCursor(lastItem).ledger, getCursor(lastItem).index + 1)
+      : undefined;
   return { items: sliced, nextCursor, count: sliced.length };
 }
