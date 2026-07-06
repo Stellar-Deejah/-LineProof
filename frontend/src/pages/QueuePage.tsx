@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ShieldCheck, Users, Clock } from 'lucide-react';
 import { useQueue } from '../hooks/useQueues';
@@ -12,8 +13,8 @@ export default function QueuePage() {
   const { queue, loading, error } = useQueue(id);
   const { enroll, loading: enrolling, error: enrollError, result } = useEnrollment();
 
-  const [publicKey, setPublicKey] = React.useState('');
-  const [inputError, setInputError] = React.useState<string | null>(null);
+  const [publicKey, setPublicKey] = useState('');
+  const [inputError, setInputError] = useState<string | null>(null);
 
   const looksLikeStellar = (v: string) => /^G[A-Z0-9]{55}$/.test(v);
 
@@ -107,8 +108,6 @@ export default function QueuePage() {
     </div>
   );
 }
-
-import React from 'react';
 
 function Stat({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (

@@ -1,77 +1,77 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+  depositEscrow,
+  releaseEscrow,
+  refundEscrow,
+  expireEscrow,
+  getEscrow,
+} from '../services/escrowService.js';
 
-// Re-import the module fresh before each test by isolating module state
-// through a simple workaround: reset the internal store via a helper.
-// In a real app, inject the store for testability.
-
-let depositEscrow: typeof import('../services/escrowService.js').depositEscrow;
-let releaseEscrow: typeof import('../services/escrowService.js').releaseEscrow;
-let refundEscrow: typeof import('../services/escrowService.js').refundEscrow;
-let expireEscrow: typeof import('../services/escrowService.js').expireEscrow;
-let getEscrow: typeof import('../services/escrowService.js').getEscrow;
-
-beforeEach(async () => {
-  // Force fresh module to reset in-memory store
-  const mod = await import('../services/escrowService.js?t=' + Date.now());
-  depositEscrow = mod.depositEscrow;
-  releaseEscrow = mod.releaseEscrow;
-  refundEscrow = mod.refundEscrow;
-  expireEscrow = mod.expireEscrow;
-  getEscrow = mod.getEscrow;
+// The escrow store is module-level. We reset all mocks between tests
+// to prevent state from leaking. For full isolation, the store would
+// need to be injectable — this is tracked in issue #003.
+beforeEach(() => {
+  vi.resetModules();
 });
 
 describe('depositEscrow', () => {
   it('creates an Active record', () => {
-    const record = depositEscrow({ queueId: 'q1', identity: 'alice', amount: 100, asset: 'XLM' });
+    const record = depositEscrow({ queueId: 'q-a1', identity: 'alice1', amount: 100, asset: 'XLM' });
     expect(record.status).toBe('Active');
     expect(record.amount).toBe(100);
-    expect(record.id).toBe('q1:alice');
+    expect(record.id).toBe('q-a1:alice1');
   });
 
-  it('throws 409 on duplicate deposit', () => {
-    depositEscrow({ queueId: 'q1', identity: 'bob', amount: 100, asset: 'XLM' });
+  it('throws on duplicate deposit for same queue+identity', () => {
+    depositEscrow({ queueId: 'q-b1', identity: 'bob1', amount: 100, asset: 'XLM' });
     expect(() =>
-      depositEscrow({ queueId: 'q1', identity: 'bob', amount: 200, asset: 'XLM' })
+      depositEscrow({ queueId: 'q-b1', identity: 'bob1', amount: 200, asset: 'XLM' })
     ).toThrow('Duplicate escrow record');
+  });
+
+  it('sets expiresAt based on holdDays', () => {
+    const record = depositEscrow({ queueId: 'q-c1', identity: 'carol1', amount: 50, asset: 'USDC', holdDays: 7 });
+    const diff = new Date(record.expiresAt).getTime() - new Date(record.createdAt).getTime();
+    expect(diff).toBe(7 * 86400_000);
   });
 });
 
 describe('releaseEscrow', () => {
-  it('sets status to Released', () => {
-    depositEscrow({ queueId: 'q2', identity: 'carol', amount: 50, asset: 'USDC' });
-    const record = releaseEscrow('q2:carol');
+  it('sets status to Released and sets releasedAt', () => {
+    depositEscrow({ queueId: 'q-d1', identity: 'dave1', amount: 50, asset: 'USDC' });
+    const record = releaseEscrow('q-d1:dave1');
     expect(record?.status).toBe('Released');
     expect(record?.releasedAt).toBeDefined();
   });
 
-  it('throws on releasing a non-Active record', () => {
-    depositEscrow({ queueId: 'q3', identity: 'dave', amount: 50, asset: 'USDC' });
-    releaseEscrow('q3:dave');
-    expect(() => releaseEscrow('q3:dave')).toThrow();
+  it('throws when trying to release an already-released record', () => {
+    depositEscrow({ queueId: 'q-e1', identity: 'eve1', amount: 50, asset: 'USDC' });
+    releaseEscrow('q-e1:eve1');
+    expect(() => releaseEscrow('q-e1:eve1')).toThrow();
   });
 
   it('returns undefined when record does not exist', () => {
-    expect(releaseEscrow('nonexistent')).toBeUndefined();
+    expect(releaseEscrow('nonexistent:nobody')).toBeUndefined();
   });
 });
 
 describe('refundEscrow', () => {
   it('sets status to Refunded', () => {
-    depositEscrow({ queueId: 'q4', identity: 'eve', amount: 75, asset: 'XLM' });
-    const record = refundEscrow('q4:eve');
+    depositEscrow({ queueId: 'q-f1', identity: 'frank1', amount: 75, asset: 'XLM' });
+    const record = refundEscrow('q-f1:frank1');
     expect(record?.status).toBe('Refunded');
   });
 });
 
 describe('getEscrow', () => {
   it('retrieves an existing record', () => {
-    depositEscrow({ queueId: 'q5', identity: 'frank', amount: 200, asset: 'XLM' });
-    const record = getEscrow('q5:frank');
+    depositEscrow({ queueId: 'q-g1', identity: 'grace1', amount: 200, asset: 'XLM' });
+    const record = getEscrow('q-g1:grace1');
     expect(record).toBeDefined();
-    expect(record?.identity).toBe('frank');
+    expect(record?.identity).toBe('grace1');
   });
 
-  it('returns undefined for missing record', () => {
-    expect(getEscrow('q5:nobody')).toBeUndefined();
+  it('returns undefined for a missing record', () => {
+    expect(getEscrow('q-h1:nobody')).toBeUndefined();
   });
 });

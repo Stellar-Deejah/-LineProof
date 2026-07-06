@@ -34,9 +34,6 @@ jobs:
   test-sdk:
     name: SDK Tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: sdk
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -45,17 +42,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install SDK dependencies
+      - name: Install workspace dependencies
         run: pnpm install --no-frozen-lockfile
       - name: Run SDK tests
-        run: pnpm test
+        run: pnpm --filter @lineproof/sdk test
 
   test-backend:
     name: Backend Tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -64,7 +58,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install backend dependencies
+      - name: Install workspace dependencies
         run: pnpm install --no-frozen-lockfile
       - name: Run backend tests
-        run: pnpm test
+        run: pnpm --filter @lineproof/backend test

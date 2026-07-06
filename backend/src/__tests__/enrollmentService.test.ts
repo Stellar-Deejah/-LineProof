@@ -1,66 +1,66 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+  enrollIdentity,
+  cancelEnrollment,
+  getEnrollmentsByIdentity,
+  getEnrollmentsByQueue,
+} from '../services/enrollmentService.js';
 
-let enrollIdentity: typeof import('../services/enrollmentService.js').enrollIdentity;
-let cancelEnrollment: typeof import('../services/enrollmentService.js').cancelEnrollment;
-let getEnrollmentsByIdentity: typeof import('../services/enrollmentService.js').getEnrollmentsByIdentity;
-let getEnrollmentsByQueue: typeof import('../services/enrollmentService.js').getEnrollmentsByQueue;
-
-beforeEach(async () => {
-  const mod = await import('../services/enrollmentService.js?t=' + Date.now());
-  enrollIdentity = mod.enrollIdentity;
-  cancelEnrollment = mod.cancelEnrollment;
-  getEnrollmentsByIdentity = mod.getEnrollmentsByIdentity;
-  getEnrollmentsByQueue = mod.getEnrollmentsByQueue;
+beforeEach(() => {
+  vi.resetModules();
 });
 
 describe('enrollIdentity', () => {
-  it('creates an enrollment record', () => {
-    const record = enrollIdentity('queue-1', 'addr-alice');
+  it('creates an enrollment record without conflict', () => {
+    const record = enrollIdentity('queue-x1', 'addr-alice1');
     expect(record.conflict).toBe(false);
     expect(record.cancelled).toBe(false);
-    expect(record.queueId).toBe('queue-1');
+    expect(record.queueId).toBe('queue-x1');
   });
 
   it('returns conflict flag on duplicate enrollment', () => {
-    enrollIdentity('queue-1', 'addr-bob');
-    const dup = enrollIdentity('queue-1', 'addr-bob');
+    enrollIdentity('queue-x2', 'addr-bob1');
+    const dup = enrollIdentity('queue-x2', 'addr-bob1');
     expect(dup.conflict).toBe(true);
   });
 
-  it('allows same identity in different queues', () => {
-    enrollIdentity('queue-a', 'addr-carol');
-    const r2 = enrollIdentity('queue-b', 'addr-carol');
+  it('allows same identity to enroll in different queues', () => {
+    enrollIdentity('queue-xa', 'addr-carol1');
+    const r2 = enrollIdentity('queue-xb', 'addr-carol1');
     expect(r2.conflict).toBe(false);
   });
 });
 
 describe('cancelEnrollment', () => {
-  it('cancels an active enrollment', () => {
-    enrollIdentity('queue-2', 'addr-dave');
-    const ok = cancelEnrollment('queue-2', 'addr-dave');
+  it('cancels an active enrollment and returns true', () => {
+    enrollIdentity('queue-x3', 'addr-dave1');
+    const ok = cancelEnrollment('queue-x3', 'addr-dave1');
     expect(ok).toBe(true);
-
-    const records = getEnrollmentsByIdentity('addr-dave');
+    const records = getEnrollmentsByIdentity('addr-dave1');
     expect(records.every((r) => r.cancelled)).toBe(true);
   });
 
   it('returns false when identity is not enrolled', () => {
-    expect(cancelEnrollment('queue-x', 'addr-nobody')).toBe(false);
+    expect(cancelEnrollment('queue-xz', 'addr-nobody1')).toBe(false);
   });
 });
 
 describe('getEnrollmentsByQueue', () => {
   it('returns all active enrollments for a queue', () => {
-    enrollIdentity('queue-3', 'addr-eve');
-    enrollIdentity('queue-3', 'addr-frank');
-    const records = getEnrollmentsByQueue('queue-3');
+    enrollIdentity('queue-x4', 'addr-eve1');
+    enrollIdentity('queue-x4', 'addr-frank1');
+    const records = getEnrollmentsByQueue('queue-x4');
     expect(records.length).toBe(2);
   });
 
   it('excludes cancelled enrollments', () => {
-    enrollIdentity('queue-4', 'addr-grace');
-    cancelEnrollment('queue-4', 'addr-grace');
-    const records = getEnrollmentsByQueue('queue-4');
+    enrollIdentity('queue-x5', 'addr-grace1');
+    cancelEnrollment('queue-x5', 'addr-grace1');
+    const records = getEnrollmentsByQueue('queue-x5');
     expect(records.length).toBe(0);
+  });
+
+  it('returns empty array for unknown queue', () => {
+    expect(getEnrollmentsByQueue('queue-ghost')).toHaveLength(0);
   });
 });
