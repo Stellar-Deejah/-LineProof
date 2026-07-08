@@ -2,10 +2,10 @@
  * Public read-only routes — no auth required.
  * These endpoints are safe to expose without rate limiting.
  */
-import { Router } from 'express';
+import { Router, type IRouter } from 'express';
 import { mockQueues, getQueueStats } from '../services/queueService.js';
 
-const router = Router();
+const router: IRouter = Router();
 
 /** GET /public/queues — list all queues (summary, no internal fields) */
 router.get('/queues', (req, res) => {

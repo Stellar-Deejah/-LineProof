@@ -1,8 +1,8 @@
-import { Router, Response } from 'express';
+import { Router, type IRouter, Response } from 'express';
 import { z } from 'zod';
 import { depositEscrow, releaseEscrow, refundEscrow, expireEscrow, getEscrow } from '../services/escrowService.js';
 
-const router = Router();
+const router: IRouter = Router();
 
 const DepositSchema = z.object({
   queueId: z.string().min(1),

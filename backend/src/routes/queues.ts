@@ -1,8 +1,8 @@
-import { Router, Response } from 'express';
+import { Router, type IRouter, Response } from 'express';
 import { z } from 'zod';
 import { mockQueues, getQueueById, createQueue, advanceQueue, closeQueue, getQueueStats } from '../services/queueService.js';
 
-const router = Router();
+const router: IRouter = Router();
 
 const CreateQueueSchema = z.object({
   name: z.string().min(1).max(120),

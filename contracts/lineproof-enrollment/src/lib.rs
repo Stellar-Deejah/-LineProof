@@ -33,11 +33,7 @@ pub trait Enrollment {
     fn enroll(env: Env, caller: Address, queue_id: Symbol) -> EnrollmentProof;
     fn cancel(env: Env, caller: Address, queue_id: Symbol);
     fn is_enrolled(env: Env, identity: Address, queue_id: Symbol) -> bool;
-    fn enrollment_record(
-        env: Env,
-        identity: Address,
-        queue_id: Symbol,
-    ) -> Option<EnrollmentRecord>;
+    fn enrollment_record(env: Env, identity: Address, queue_id: Symbol) -> Option<EnrollmentRecord>;
     fn set_duplicate_behavior(env: Env, admin: Address, behavior: DuplicateBehavior);
     fn finalize_enrollment(env: Env, admin: Address, identity: Address, queue_id: Symbol);
     fn enrollment_count(env: Env, queue_id: Symbol) -> u32;

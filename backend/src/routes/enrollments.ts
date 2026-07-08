@@ -1,8 +1,8 @@
-import { Router, Response } from 'express';
+import { Router, type IRouter, Response } from 'express';
 import { z } from 'zod';
 import { enrollIdentity, cancelEnrollment, getEnrollmentsByIdentity, getEnrollmentsByQueue } from '../services/enrollmentService.js';
 
-const router = Router();
+const router: IRouter = Router();
 
 const EnrollSchema = z.object({
   queueId: z.string().min(1),
