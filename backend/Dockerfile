@@ -1,24 +1,38 @@
+# Build context must be the monorepo root: docker build -f backend/Dockerfile .
 FROM node:20-alpine AS base
 RUN corepack enable && corepack prepare pnpm@9 --activate
-WORKDIR /app
+WORKDIR /repo
 
-# Install dependencies
+# Copy workspace manifests first for better layer caching
 FROM base AS deps
-COPY package.json ./
-RUN pnpm install --no-frozen-lockfile
+COPY pnpm-workspace.yaml package.json ./
+COPY sdk/package.json ./sdk/
+COPY backend/package.json ./backend/
+COPY frontend/package.json ./frontend/
+# Install only backend + sdk dependencies
+RUN pnpm install --no-frozen-lockfile --filter @lineproof/backend... 
 
-# Build
-FROM deps AS build
-COPY . .
-RUN pnpm build
+# Build SDK first (backend depends on it)
+FROM deps AS build-sdk
+COPY sdk/ ./sdk/
+RUN pnpm --filter @lineproof/sdk build
 
-# Runtime image
+# Build backend
+FROM build-sdk AS build-backend
+COPY backend/ ./backend/
+RUN pnpm --filter @lineproof/backend build
+
+# Minimal runtime image
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/package.json ./
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build-backend /repo/backend/dist ./dist
+COPY --from=build-backend /repo/backend/package.json ./
+COPY --from=deps /repo/node_modules ./node_modules
+COPY --from=deps /repo/backend/node_modules ./backend/node_modules
+# Flatten sdk build output so backend can resolve @lineproof/sdk
+COPY --from=build-sdk /repo/sdk/dist /app/node_modules/@lineproof/sdk/dist
+COPY --from=build-sdk /repo/sdk/package.json /app/node_modules/@lineproof/sdk/
 
 ENV NODE_ENV=production
 EXPOSE 4000

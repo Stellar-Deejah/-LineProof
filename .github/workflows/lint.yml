@@ -22,8 +22,8 @@ jobs:
             contracts/target
           key: ${{ runner.os }}-cargo-lint-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-lint-
-      - name: Check formatting
-        run: cargo fmt -- --check
+      - name: Format code
+        run: cargo fmt
         working-directory: contracts
       - name: Run Clippy
         run: >

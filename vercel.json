@@ -1,0 +1,14 @@
+{
+  "framework": "vite",
+  "buildCommand": "cd sdk && pnpm install --no-frozen-lockfile && pnpm build && cd ../frontend && pnpm install --no-frozen-lockfile && pnpm build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "env": {
+    "VITE_API_BASE_URL": "https://your-backend.vercel.app/api",
+    "VITE_STELLAR_NETWORK": "Test SDF Network ; September 2015",
+    "VITE_SOROBAN_RPC_URL": "https://soroban-testnet.stellar.org"
+  }
+}

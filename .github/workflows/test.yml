@@ -25,7 +25,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
       - name: Build contracts (WASM target)
-        run: cargo build --target wasm32-unknown-unknown --release
+        run: |
+          cargo fmt
+          cargo build --target wasm32-unknown-unknown --release
         working-directory: contracts
       - name: Run contract tests
         run: cargo test --workspace
