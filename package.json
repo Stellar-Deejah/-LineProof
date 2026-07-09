@@ -12,6 +12,7 @@
     "build": "pnpm run build:contracts && pnpm run build:sdk",
     "build:contracts": "cd contracts && cargo build --target wasm32-unknown-unknown --release",
     "build:sdk": "pnpm --filter @lineproof/sdk build",
+    "vercel-build": "pnpm install --no-frozen-lockfile && pnpm --filter @lineproof/sdk build && pnpm --filter @lineproof/frontend build",
     "test": "pnpm run test:contracts && pnpm run test:sdk",
     "test:contracts": "cd contracts && cargo test",
     "test:sdk": "pnpm --filter @lineproof/sdk test",
