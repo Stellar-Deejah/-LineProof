@@ -1,6 +1,6 @@
 {
   "framework": "vite",
-  "buildCommand": "cd sdk && pnpm install --no-frozen-lockfile && pnpm build && cd ../frontend && pnpm install --no-frozen-lockfile && pnpm build",
+  "buildCommand": "pnpm --filter @lineproof/sdk build && pnpm --filter @lineproof/frontend build",
   "outputDirectory": "frontend/dist",
   "installCommand": "pnpm install --no-frozen-lockfile",
   "rewrites": [
