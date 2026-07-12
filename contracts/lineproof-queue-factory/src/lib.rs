@@ -1,4 +1,4 @@
-use soroban_sdk::{contractimpl, contracttype, Address, BytesN, Env, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, Symbol, Vec};
 
 /// Storage key prefix for queue registry
 const QUEUE_REGISTRY_PREFIX: &str = "queue";
@@ -234,4 +234,5 @@ fn emit(env: &Env, kind: Symbol, slug: Symbol, _contract_id: BytesN<32>, version
     ));
 }
 
+#[cfg(test)]
 mod test;

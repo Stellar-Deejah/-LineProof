@@ -188,6 +188,8 @@ fn test_total_enrolled() {
     assert_eq!(QueueImpl::total_enrolled(env), 2);
 }
 
+#[test]
+fn test_close() {
     let (env, admin) = setup();
     let config = make_config(&env, &admin);
     QueueImpl::initialize(env.clone(), admin.clone(), config);

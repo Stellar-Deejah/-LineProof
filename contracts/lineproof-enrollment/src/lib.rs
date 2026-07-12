@@ -1,4 +1,4 @@
-use soroban_sdk::{contractimpl, contracttype, Address, Env, Symbol};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, Symbol};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -6,7 +6,7 @@ pub struct EnrollmentProof {
     pub queue_id: Symbol,
     pub identity: Address,
     pub enrolled_at: u64,
-    pub proof_hash: [u8; 32],
+    pub proof_hash: BytesN<32>,
 }
 
 #[contracttype]
@@ -23,7 +23,7 @@ pub struct EnrollmentRecord {
     pub identity: Address,
     pub queue_id: Symbol,
     pub enrolled_at: u64,
-    pub proof_hash: [u8; 32],
+    pub proof_hash: BytesN<32>,
     pub duplicate_count: u32,
     pub finalized: bool,
 }
@@ -166,7 +166,7 @@ impl EnrollmentImpl {
 
     /// Produces a 32-byte proof hash by XOR-folding the SHA-256-like preimage.
     /// In production this should use env.crypto().sha256() once available.
-    fn compute_proof_hash(env: &Env, identity: &Address, queue_id: &Symbol, enrolled_at: u64) -> [u8; 32] {
+    fn compute_proof_hash(env: &Env, identity: &Address, queue_id: &Symbol, enrolled_at: u64) -> BytesN<32> {
         let ts_bytes = enrolled_at.to_be_bytes();
         let mut hash = [0u8; 32];
         // Mix timestamp bytes into the hash
@@ -179,11 +179,11 @@ impl EnrollmentImpl {
         for (i, b) in seq_bytes.iter().enumerate() {
             hash[(i + 8) % 32] ^= b;
         }
-        hash
+        BytesN::from_array(env, &hash)
     }
 }
 
-fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64, _hash: [u8; 32]) {
+fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64, _hash: BytesN<32>) {
     env.events().publish((
         Symbol::new(env, "lineproof.enrollment"),
         kind,
@@ -191,4 +191,5 @@ fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timesta
     ));
 }
 
+#[cfg(test)]
 mod test;

@@ -1,8 +1,9 @@
 {
-  "buildCommand": "pnpm install --no-frozen-lockfile && pnpm --filter @lineproof/sdk build && pnpm --filter @lineproof/frontend build",
-  "outputDirectory": "frontend/dist",
-  "installCommand": "npm install -g pnpm@9",
+  "version": 2,
   "framework": null,
+  "installCommand": "npm install -g pnpm@9 && pnpm install --no-frozen-lockfile",
+  "buildCommand": "pnpm --filter @lineproof/sdk build && pnpm --filter @lineproof/frontend build",
+  "outputDirectory": "frontend/dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

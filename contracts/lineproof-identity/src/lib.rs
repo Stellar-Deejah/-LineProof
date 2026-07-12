@@ -1,4 +1,4 @@
-use soroban_sdk::{contractimpl, contracttype, Address, Env, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Vec};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[contracttype]
@@ -174,4 +174,5 @@ fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timesta
     ));
 }
 
+#[cfg(test)]
 mod test;

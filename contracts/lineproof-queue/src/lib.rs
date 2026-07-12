@@ -1,4 +1,4 @@
-use soroban_sdk::{contractimpl, contracttype, Address, Env, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -79,7 +79,13 @@ impl Queue for QueueImpl {
         }
         config.status = QueueStatus::EnrollmentOpen;
         env.storage().persistent().set(&Symbol::new(&env, "config"), &config);
-        emit(&env, Symbol::new(&env, "EnrollmentOpened"), 0, &admin, env.ledger().timestamp());
+        emit(
+            &env,
+            Symbol::new(&env, "EnrollmentOpened"),
+            0,
+            &admin,
+            env.ledger().timestamp(),
+        );
     }
 
     fn close_enrollment(env: Env, admin: Address) {
@@ -87,7 +93,13 @@ impl Queue for QueueImpl {
         let mut config = Self::get_config_internal(&env);
         config.status = QueueStatus::EnrollmentClosed;
         env.storage().persistent().set(&Symbol::new(&env, "config"), &config);
-        emit(&env, Symbol::new(&env, "EnrollmentClosed"), 0, &admin, env.ledger().timestamp());
+        emit(
+            &env,
+            Symbol::new(&env, "EnrollmentClosed"),
+            0,
+            &admin,
+            env.ledger().timestamp(),
+        );
     }
 
     fn enroll_position(env: Env, identity: Address) -> u32 {
@@ -111,7 +123,13 @@ impl Queue for QueueImpl {
         let key_pos = Self::position_key(&env, next_id);
         env.storage().persistent().set(&key_pos, &pos);
         env.storage().persistent().set(&next_id_key, &(next_id + 1));
-        emit(&env, Symbol::new(&env, "Enrolled"), next_id, &identity, env.ledger().timestamp());
+        emit(
+            &env,
+            Symbol::new(&env, "Enrolled"),
+            next_id,
+            &identity,
+            env.ledger().timestamp(),
+        );
         next_id
     }
 
@@ -127,7 +145,13 @@ impl Queue for QueueImpl {
         pos.status = PositionStatus::Cancelled;
         let key_pos = Self::position_key(&env, position_id);
         env.storage().persistent().set(&key_pos, &pos);
-        emit(&env, Symbol::new(&env, "Cancelled"), position_id, &identity, env.ledger().timestamp());
+        emit(
+            &env,
+            Symbol::new(&env, "Cancelled"),
+            position_id,
+            &identity,
+            env.ledger().timestamp(),
+        );
     }
 
     fn advance(env: Env, admin: Address, batch_size: u32) -> Vec<u32> {
@@ -140,10 +164,7 @@ impl Queue for QueueImpl {
         env.storage().persistent().set(&Symbol::new(&env, "config"), &config);
 
         let mut advanced: Vec<u32> = Vec::new(&env);
-        let mut idx: u32 = env.storage()
-            .persistent()
-            .get(&Symbol::new(&env, "idx"))
-            .unwrap_or(0);
+        let mut idx: u32 = env.storage().persistent().get(&Symbol::new(&env, "idx")).unwrap_or(0);
 
         for _ in 0..batch_size {
             if idx >= config.max_positions {
@@ -166,7 +187,13 @@ impl Queue for QueueImpl {
         env.storage().persistent().set(&Symbol::new(&env, "idx"), &idx);
         // Remain in AdvancementActive so callers can issue further advance() batches
         for id in advanced.iter() {
-            emit(&env, Symbol::new(&env, "Advanced"), *id, &admin, env.ledger().timestamp());
+            emit(
+                &env,
+                Symbol::new(&env, "Advanced"),
+                *id,
+                &admin,
+                env.ledger().timestamp(),
+            );
         }
         advanced
     }
@@ -183,18 +210,20 @@ impl Queue for QueueImpl {
     }
 
     fn current_position_index(env: Env) -> u32 {
-        env.storage()
-            .persistent()
-            .get(&Symbol::new(&env, "idx"))
-            .unwrap_or(0)
+        env.storage().persistent().get(&Symbol::new(&env, "idx")).unwrap_or(0)
     }
 
     fn total_enrolled(env: Env) -> u32 {
-        let next_id: u32 = env.storage()
+        let next_id: u32 = env
+            .storage()
             .persistent()
             .get(&Symbol::new(&env, "next_id"))
             .unwrap_or(1);
-        if next_id == 0 { 0 } else { next_id - 1 }
+        if next_id == 0 {
+            0
+        } else {
+            next_id - 1
+        }
     }
 
     fn close(env: Env, admin: Address) {
@@ -202,7 +231,13 @@ impl Queue for QueueImpl {
         let mut config = Self::get_config_internal(&env);
         config.status = QueueStatus::Closed;
         env.storage().persistent().set(&Symbol::new(&env, "config"), &config);
-        emit(&env, Symbol::new(&env, "QueueClosed"), 0, &admin, env.ledger().timestamp());
+        emit(
+            &env,
+            Symbol::new(&env, "QueueClosed"),
+            0,
+            &admin,
+            env.ledger().timestamp(),
+        );
     }
 }
 
@@ -228,11 +263,9 @@ impl QueueImpl {
 }
 
 fn emit(env: &Env, kind: Symbol, position_id: u32, _identity: &Address, _timestamp: u64) {
-    env.events().publish((
-        Symbol::new(env, "lineproof.queue"),
-        kind,
-        position_id,
-    ));
+    env.events()
+        .publish((Symbol::new(env, "lineproof.queue"), kind, position_id));
 }
 
+#[cfg(test)]
 mod test;
