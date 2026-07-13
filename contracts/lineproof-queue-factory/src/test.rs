@@ -38,7 +38,14 @@ fn test_deploy_queue_registers_and_indexes() {
     let deployer = Address::generate(&env);
     let slug = Symbol::new(&env, "test-q");
     let wasm_hash = soroban_sdk::BytesN::from_array(&env, &[3u8; 32]);
-    QueueFactoryImpl::deploy_queue(env.clone(), deployer, slug.clone(), Symbol::new(&env, "T"), 1, wasm_hash);
+    QueueFactoryImpl::deploy_queue(
+        env.clone(),
+        deployer,
+        slug.clone(),
+        Symbol::new(&env, "T"),
+        1,
+        wasm_hash,
+    );
 
     let meta = QueueFactoryImpl::get_queue(env.clone(), slug.clone());
     assert!(meta.is_some());
@@ -59,7 +66,14 @@ fn test_list_queues_returns_all_slugs() {
     for i in 0u8..3 {
         let slug = Symbol::new(&env, &alloc::format!("q{}", i));
         let wasm_hash = soroban_sdk::BytesN::from_array(&env, &[i + 10; 32]);
-        QueueFactoryImpl::deploy_queue(env.clone(), deployer.clone(), slug, Symbol::new(&env, "N"), 1, wasm_hash);
+        QueueFactoryImpl::deploy_queue(
+            env.clone(),
+            deployer.clone(),
+            slug,
+            Symbol::new(&env, "N"),
+            1,
+            wasm_hash,
+        );
     }
     let slugs = QueueFactoryImpl::list_queues(env.clone());
     assert_eq!(slugs.len(), 3);
@@ -73,7 +87,14 @@ fn test_deactivate_and_reactivate() {
     let deployer = Address::generate(&env);
     let slug = Symbol::new(&env, "toggle");
     let wasm_hash = soroban_sdk::BytesN::from_array(&env, &[7u8; 32]);
-    QueueFactoryImpl::deploy_queue(env.clone(), deployer, slug.clone(), Symbol::new(&env, "T"), 1, wasm_hash);
+    QueueFactoryImpl::deploy_queue(
+        env.clone(),
+        deployer,
+        slug.clone(),
+        Symbol::new(&env, "T"),
+        1,
+        wasm_hash,
+    );
     assert!(QueueFactoryImpl::verify_queue(env.clone(), slug.clone()));
     QueueFactoryImpl::deactivate_queue(env.clone(), admin.clone(), slug.clone());
     assert!(!QueueFactoryImpl::verify_queue(env.clone(), slug.clone()));
@@ -96,7 +117,14 @@ fn test_deploy_rejects_bad_version() {
     init(&env, &admin);
     let deployer = Address::generate(&env);
     let wasm_hash = soroban_sdk::BytesN::from_array(&env, &[3u8; 32]);
-    QueueFactoryImpl::deploy_queue(env.clone(), deployer, Symbol::new(&env, "x"), Symbol::new(&env, "X"), 99, wasm_hash);
+    QueueFactoryImpl::deploy_queue(
+        env.clone(),
+        deployer,
+        Symbol::new(&env, "x"),
+        Symbol::new(&env, "X"),
+        99,
+        wasm_hash,
+    );
 }
 
 #[test]
@@ -106,6 +134,20 @@ fn test_deploy_rejects_duplicate_slug() {
     init(&env, &admin);
     let deployer = Address::generate(&env);
     let slug = Symbol::new(&env, "dup");
-    QueueFactoryImpl::deploy_queue(env.clone(), deployer.clone(), slug.clone(), Symbol::new(&env, "D"), 1, soroban_sdk::BytesN::from_array(&env, &[3u8; 32]));
-    QueueFactoryImpl::deploy_queue(env.clone(), deployer, slug, Symbol::new(&env, "D"), 1, soroban_sdk::BytesN::from_array(&env, &[4u8; 32]));
+    QueueFactoryImpl::deploy_queue(
+        env.clone(),
+        deployer.clone(),
+        slug.clone(),
+        Symbol::new(&env, "D"),
+        1,
+        soroban_sdk::BytesN::from_array(&env, &[3u8; 32]),
+    );
+    QueueFactoryImpl::deploy_queue(
+        env.clone(),
+        deployer,
+        slug,
+        Symbol::new(&env, "D"),
+        1,
+        soroban_sdk::BytesN::from_array(&env, &[4u8; 32]),
+    );
 }

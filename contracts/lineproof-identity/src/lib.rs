@@ -58,7 +58,13 @@ impl Identity for IdentityImpl {
         record.status = BindingStatus::Bound;
         let key = Self::record_key(&env, &identity);
         env.storage().persistent().set(&key, &record);
-        emit(&env, Symbol::new(&env, "Bound"), queue_id, &identity, env.ledger().timestamp());
+        emit(
+            &env,
+            Symbol::new(&env, "Bound"),
+            queue_id,
+            &identity,
+            env.ledger().timestamp(),
+        );
     }
 
     fn unbind(env: Env, identity: Address, queue_id: Symbol) {
@@ -73,7 +79,13 @@ impl Identity for IdentityImpl {
         record.queues = updated;
         let key = Self::record_key(&env, &identity);
         env.storage().persistent().set(&key, &record);
-        emit(&env, Symbol::new(&env, "Unbound"), queue_id, &identity, env.ledger().timestamp());
+        emit(
+            &env,
+            Symbol::new(&env, "Unbound"),
+            queue_id,
+            &identity,
+            env.ledger().timestamp(),
+        );
     }
 
     fn is_bound(env: Env, identity: Address, queue_id: Symbol) -> bool {
@@ -97,7 +109,13 @@ impl Identity for IdentityImpl {
         };
         let key = Self::attempt_key(&env, &from, &to, &queue_id);
         env.storage().persistent().set(&key, &attempt);
-        emit(&env, Symbol::new(&env, "TransferReverted"), queue_id, &from, env.ledger().timestamp());
+        emit(
+            &env,
+            Symbol::new(&env, "TransferReverted"),
+            queue_id,
+            &from,
+            env.ledger().timestamp(),
+        );
     }
 
     fn get_record(env: Env, identity: Address) -> Option<IdentityRecord> {
@@ -126,7 +144,9 @@ impl Identity for IdentityImpl {
     fn revoke(env: Env, admin: Address, identity: Address) {
         admin.require_auth();
         let admin_key = Symbol::new(&env, "admin");
-        let stored_admin: Address = env.storage().persistent()
+        let stored_admin: Address = env
+            .storage()
+            .persistent()
             .get(&admin_key)
             .unwrap_or_else(|| panic!("not initialized"));
         if admin != stored_admin {
@@ -136,22 +156,25 @@ impl Identity for IdentityImpl {
         record.status = BindingStatus::Revoked;
         let key = Self::record_key(&env, &identity);
         env.storage().persistent().set(&key, &record);
-        emit(&env, Symbol::new(&env, "Revoked"), Symbol::new(&env, ""), &identity, env.ledger().timestamp());
+        emit(
+            &env,
+            Symbol::new(&env, "Revoked"),
+            Symbol::new(&env, ""),
+            &identity,
+            env.ledger().timestamp(),
+        );
     }
 }
 
 impl IdentityImpl {
     fn get_record_internal(env: &Env, identity: &Address) -> IdentityRecord {
         let key = Self::record_key(env, identity);
-        env.storage()
-            .persistent()
-            .get(&key)
-            .unwrap_or(IdentityRecord {
-                identity: identity.clone(),
-                bound_at: 0,
-                queues: Vec::new(env),
-                status: BindingStatus::Unbound,
-            })
+        env.storage().persistent().get(&key).unwrap_or(IdentityRecord {
+            identity: identity.clone(),
+            bound_at: 0,
+            queues: Vec::new(env),
+            status: BindingStatus::Unbound,
+        })
     }
 
     pub fn record_key(env: &Env, identity: &Address) -> (Symbol, Address) {
@@ -169,11 +192,8 @@ impl IdentityImpl {
 }
 
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64) {
-    env.events().publish((
-        Symbol::new(env, "lineproof.identity"),
-        kind,
-        queue_id,
-    ), ());
+    env.events()
+        .publish((Symbol::new(env, "lineproof.identity"), kind, queue_id), ());
 }
 
 #[cfg(test)]

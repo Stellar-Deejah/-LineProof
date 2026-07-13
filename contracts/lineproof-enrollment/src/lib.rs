@@ -135,7 +135,14 @@ impl Enrollment for EnrollmentImpl {
         record.finalized = true;
         let key = Self::record_key(&env, &identity, &queue_id);
         env.storage().persistent().set(&key, &record);
-        emit(&env, Symbol::new(&env, "Finalized"), queue_id, &identity, record.enrolled_at, record.proof_hash);
+        emit(
+            &env,
+            Symbol::new(&env, "Finalized"),
+            queue_id,
+            &identity,
+            record.enrolled_at,
+            record.proof_hash,
+        );
     }
 
     fn enrollment_count(env: Env, queue_id: Symbol) -> u32 {
@@ -186,11 +193,8 @@ impl EnrollmentImpl {
 }
 
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64, _hash: BytesN<32>) {
-    env.events().publish((
-        Symbol::new(env, "lineproof.enrollment"),
-        kind,
-        queue_id,
-    ), ());
+    env.events()
+        .publish((Symbol::new(env, "lineproof.enrollment"), kind, queue_id), ());
 }
 
 #[cfg(test)]

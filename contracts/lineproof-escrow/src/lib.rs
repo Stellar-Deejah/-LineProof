@@ -143,16 +143,13 @@ impl Escrow for EscrowImpl {
 
     fn get_config(env: Env, queue_id: Symbol) -> EscrowConfig {
         let key = Self::config_key(&env, &queue_id);
-        env.storage()
-            .persistent()
-            .get(&key)
-            .unwrap_or(EscrowConfig {
-                queue_id,
-                min_deposit: 0,
-                max_deposit: i128::MAX,
-                hold_period_days: 30,
-                admin: env.current_contract_address(),
-            })
+        env.storage().persistent().get(&key).unwrap_or(EscrowConfig {
+            queue_id,
+            min_deposit: 0,
+            max_deposit: i128::MAX,
+            hold_period_days: 30,
+            admin: env.current_contract_address(),
+        })
     }
 
     fn set_config(env: Env, admin: Address, config: EscrowConfig) {
@@ -190,11 +187,8 @@ impl EscrowImpl {
 }
 
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _amount: i128) {
-    env.events().publish((
-        Symbol::new(env, "lineproof.escrow"),
-        kind,
-        queue_id,
-    ), ());
+    env.events()
+        .publish((Symbol::new(env, "lineproof.escrow"), kind, queue_id), ());
 }
 
 #[cfg(test)]
