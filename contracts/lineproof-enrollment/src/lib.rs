@@ -28,7 +28,7 @@ pub struct EnrollmentRecord {
     pub finalized: bool,
 }
 
-#[contract]
+#[contractclient(name = "EnrollmentClient")]
 pub trait Enrollment {
     fn enroll(env: Env, caller: Address, queue_id: Symbol) -> EnrollmentProof;
     fn cancel(env: Env, caller: Address, queue_id: Symbol);
@@ -39,6 +39,7 @@ pub trait Enrollment {
     fn enrollment_count(env: Env, queue_id: Symbol) -> u32;
 }
 
+#[contract]
 pub struct EnrollmentImpl;
 
 #[contractimpl]
