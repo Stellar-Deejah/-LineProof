@@ -1,10 +1,10 @@
 use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
 
-use crate::{Position, PositionStatus, QueueConfig, QueueImpl, QueueStatus};
+use crate::{Position, PositionStatus, Queue, QueueConfig, QueueImpl, QueueStatus};
 
 fn setup() -> (Env, Address) {
     let env = Env::default();
-    let admin = Address::new(&env, &[1; 7]);
+    let admin = Address::generate(&env);
     (env, admin)
 }
 
@@ -59,8 +59,8 @@ fn test_advance_updates_positions() {
     QueueImpl::initialize(env.clone(), admin.clone(), config);
     QueueImpl::open_enrollment(env.clone(), admin.clone());
 
-    let user1 = Address::new(&env, &[10u8; 7]);
-    let user2 = Address::new(&env, &[11u8; 7]);
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
 
     let pos1 = Position {
         position_id: 1,
@@ -124,7 +124,7 @@ fn test_enroll_position_creates_pending() {
     QueueImpl::initialize(env.clone(), admin.clone(), config);
     QueueImpl::open_enrollment(env.clone(), admin.clone());
 
-    let user = Address::new(&env, &[42u8; 7]);
+    let user = Address::generate(&env);
     let pos_id = QueueImpl::enroll_position(env.clone(), user.clone());
     assert_eq!(pos_id, 1);
 
@@ -140,7 +140,7 @@ fn test_enroll_position_rejects_when_not_open() {
     let config = make_config(&env, &admin);
     QueueImpl::initialize(env.clone(), admin.clone(), config);
     // enrollment not opened
-    let user = Address::new(&env, &[43u8; 7]);
+    let user = Address::generate(&env);
     QueueImpl::enroll_position(env, user);
 }
 
@@ -151,7 +151,7 @@ fn test_cancel_position() {
     QueueImpl::initialize(env.clone(), admin.clone(), config);
     QueueImpl::open_enrollment(env.clone(), admin.clone());
 
-    let user = Address::new(&env, &[44u8; 7]);
+    let user = Address::generate(&env);
     let pos_id = QueueImpl::enroll_position(env.clone(), user.clone());
     QueueImpl::cancel_position(env.clone(), user.clone(), pos_id);
 
@@ -167,8 +167,8 @@ fn test_cancel_position_wrong_identity() {
     QueueImpl::initialize(env.clone(), admin.clone(), config);
     QueueImpl::open_enrollment(env.clone(), admin.clone());
 
-    let user = Address::new(&env, &[45u8; 7]);
-    let other = Address::new(&env, &[46u8; 7]);
+    let user = Address::generate(&env);
+    let other = Address::generate(&env);
     let pos_id = QueueImpl::enroll_position(env.clone(), user.clone());
     QueueImpl::cancel_position(env, other, pos_id);
 }
@@ -181,8 +181,8 @@ fn test_total_enrolled() {
     QueueImpl::open_enrollment(env.clone(), admin.clone());
 
     assert_eq!(QueueImpl::total_enrolled(env.clone()), 0);
-    let u1 = Address::new(&env, &[50u8; 7]);
-    let u2 = Address::new(&env, &[51u8; 7]);
+    let u1 = Address::generate(&env);
+    let u2 = Address::generate(&env);
     QueueImpl::enroll_position(env.clone(), u1);
     QueueImpl::enroll_position(env.clone(), u2);
     assert_eq!(QueueImpl::total_enrolled(env), 2);
@@ -216,11 +216,11 @@ fn test_advance_stays_in_advancement_active() {
     QueueImpl::initialize(env.clone(), admin.clone(), config);
     QueueImpl::open_enrollment(env.clone(), admin.clone());
 
-    let user = Address::new(&env, &[30u8; 7]);
+    let user = Address::generate(&env);
     let pos = Position {
         position_id: 1,
         enrolled_at: 100,
-        identity: user,
+        identity: user.clone(),
         status: PositionStatus::Pending,
         advanced_at: None,
     };
@@ -239,11 +239,11 @@ fn test_get_position_by_id() {
     let config = make_config(&env, &admin);
     QueueImpl::initialize(env.clone(), admin.clone(), config);
 
-    let user = Address::new(&env, &[20u8; 7]);
+    let user = Address::generate(&env);
     let pos = Position {
         position_id: 1,
         enrolled_at: 50,
-        identity: user,
+        identity: user.clone(),
         status: PositionStatus::Pending,
         advanced_at: None,
     };
