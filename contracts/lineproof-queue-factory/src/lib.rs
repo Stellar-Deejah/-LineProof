@@ -1,4 +1,5 @@
-use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, Symbol, Vec};
+#![no_std]
+use soroban_sdk::{contract, contractclient, contractimpl, contracttype, Address, BytesN, Env, Symbol, Vec, IntoVal};
 
 /// Storage key prefix for queue registry
 const QUEUE_REGISTRY_PREFIX: &str = "queue";
@@ -11,7 +12,7 @@ pub struct QueueMetadata {
     pub slug: Symbol,
     pub name: Symbol,
     pub owner: Address,
-    pub contract_id: BytesN<32>,
+    pub contract_id: Address,
     pub version: u32,
     pub deployed_at: u64,
     pub active: bool,
@@ -35,8 +36,8 @@ pub trait QueueFactory {
         name: Symbol,
         version: u32,
         wasm_hash: BytesN<32>,
-    ) -> BytesN<32>;
-    fn register_queue(env: Env, admin: Address, slug: Symbol, contract_id: BytesN<32>, version: u32);
+    ) -> Address;
+    fn register_queue(env: Env, admin: Address, slug: Symbol, contract_id: Address, version: u32);
     fn deactivate_queue(env: Env, admin: Address, slug: Symbol);
     fn reactivate_queue(env: Env, admin: Address, slug: Symbol);
     fn set_config(env: Env, admin: Address, min_version: u32, max_version: u32);
@@ -58,13 +59,13 @@ impl QueueFactory for QueueFactoryImpl {
         if env.storage().persistent().has(&key) {
             panic!("already initialized");
         }
-        let config = FactoryConfig { admin, min_version: 1, max_version: 1 };
+        let config = FactoryConfig { admin: admin.clone(), min_version: 1, max_version: 1 };
         env.storage().persistent().set(&key, &config);
         // Initialize empty slug index
         let idx_key = Symbol::new(&env, SLUG_INDEX_KEY);
         let empty: Vec<Symbol> = Vec::new(&env);
         env.storage().persistent().set(&idx_key, &empty);
-        emit(&env, Symbol::new(&env, "Init"), Symbol::new(&env, ""), BytesN::new(&env, &[0u8; 32]), 0, 0);
+        emit(&env, Symbol::new(&env, "Init"), Symbol::new(&env, ""), admin.clone(), 0, 0);
     }
 
     fn deploy_queue(
@@ -74,7 +75,7 @@ impl QueueFactory for QueueFactoryImpl {
         name: Symbol,
         version: u32,
         wasm_hash: BytesN<32>,
-    ) -> BytesN<32> {
+    ) -> Address {
         deployer.require_auth();
         let config_key = Symbol::new(&env, "config");
         let config: FactoryConfig = env.storage().persistent().get(&config_key).unwrap();
@@ -85,7 +86,7 @@ impl QueueFactory for QueueFactoryImpl {
         if env.storage().persistent().has(&registry_key) {
             panic!("queue with this slug already exists");
         }
-        let contract_id = env.deployer().with_current_contract(&wasm_hash).deploy();
+        let contract_id = env.deployer().with_current_contract(wasm_hash.clone()).deploy_v2(wasm_hash, ());
         let deployed_at = env.ledger().timestamp();
         let metadata = QueueMetadata {
             slug: slug.clone(),
@@ -102,7 +103,7 @@ impl QueueFactory for QueueFactoryImpl {
         contract_id
     }
 
-    fn register_queue(env: Env, admin: Address, slug: Symbol, contract_id: BytesN<32>, version: u32) {
+    fn register_queue(env: Env, admin: Address, slug: Symbol, contract_id: Address, version: u32) {
         admin.require_auth();
         let registry_key = Self::queue_registry_key(&env, &slug);
         if env.storage().persistent().has(&registry_key) {
@@ -200,7 +201,11 @@ impl QueueFactory for QueueFactoryImpl {
         metadata.version = new_version;
         let registry_key = Self::queue_registry_key(&env, &slug);
         env.storage().persistent().set(&registry_key, &metadata);
-        env.deployer().with_current_contract(&new_wasm_hash).upgrade(&contract_id);
+        env.invoke_contract::<()>(
+            &contract_id,
+            &Symbol::new(&env, "upgrade"),
+            soroban_sdk::vec![&env, admin.into_val(&env), new_wasm_hash.into_val(&env)],
+        );
         emit(&env, Symbol::new(&env, "Upgraded"), slug, contract_id, new_version, env.ledger().timestamp());
     }
 }
@@ -226,13 +231,13 @@ impl QueueFactoryImpl {
     }
 }
 
-fn emit(env: &Env, kind: Symbol, slug: Symbol, _contract_id: BytesN<32>, version: u32, _timestamp: u64) {
+fn emit(env: &Env, kind: Symbol, slug: Symbol, _contract_id: Address, version: u32, _timestamp: u64) {
     env.events().publish((
         Symbol::new(env, "lineproof.factory"),
         kind,
         slug,
         version,
-    ));
+    ), ());
 }
 
 #[cfg(test)]
