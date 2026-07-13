@@ -32,7 +32,7 @@ pub struct EscrowConfig {
     pub admin: Address,
 }
 
-#[contract]
+#[contractclient(name = "EscrowClient")]
 pub trait Escrow {
     fn deposit(env: Env, caller: Address, queue_id: Symbol, amount: i128, asset: Address);
     fn release(env: Env, admin: Address, identity: Address, queue_id: Symbol);
@@ -44,6 +44,7 @@ pub trait Escrow {
     fn get_total_held(env: Env, queue_id: Symbol) -> i128;
 }
 
+#[contract]
 pub struct EscrowImpl;
 
 #[contractimpl]
