@@ -1,6 +1,7 @@
 import { Router, type IRouter, Response } from 'express';
 import { z } from 'zod';
 import { enrollIdentity, cancelEnrollment, getEnrollmentsByIdentity, getEnrollmentsByQueue } from '../services/enrollmentService.js';
+import { recordEnrollment } from '../metrics/registry.js';
 
 const router: IRouter = Router();
 
@@ -21,6 +22,7 @@ router.post('/enroll', (req: any, res: Response, next) => {
   try {
     const result = enrollIdentity(parsed.data.queueId, parsed.data.identity);
     if (result.conflict) return res.status(409).json({ message: 'Duplicate enrollment blocked' });
+    recordEnrollment(result.queueId);
     res.status(201).json(result);
   } catch (err) {
     next(err);

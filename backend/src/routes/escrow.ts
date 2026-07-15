@@ -1,6 +1,7 @@
 import { Router, type IRouter, Response } from 'express';
 import { z } from 'zod';
 import { depositEscrow, releaseEscrow, refundEscrow, expireEscrow, getEscrow } from '../services/escrowService.js';
+import { recordEscrowDeposit, recordEscrowClosed } from '../metrics/registry.js';
 
 const router: IRouter = Router();
 
@@ -21,6 +22,7 @@ router.post('/deposit', (req: any, res: Response, next) => {
   if (!parsed.success) return res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
   try {
     const record = depositEscrow(parsed.data);
+    recordEscrowDeposit(record.asset);
     res.status(201).json(record);
   } catch (err) {
     next(err);
@@ -33,6 +35,7 @@ router.post('/release', (req: any, res: Response, next) => {
   try {
     const updated = releaseEscrow(parsed.data.escrowId);
     if (!updated) return res.status(404).json({ message: 'Escrow not found' });
+    recordEscrowClosed();
     res.json(updated);
   } catch (err) {
     next(err);
@@ -45,6 +48,7 @@ router.post('/refund', (req: any, res: Response, next) => {
   try {
     const updated = refundEscrow(parsed.data.escrowId);
     if (!updated) return res.status(404).json({ message: 'Escrow not found' });
+    recordEscrowClosed();
     res.json(updated);
   } catch (err) {
     next(err);
@@ -57,6 +61,7 @@ router.post('/expire', (req: any, res: Response, next) => {
   try {
     const updated = expireEscrow(parsed.data.escrowId);
     if (!updated) return res.status(404).json({ message: 'Escrow not found' });
+    recordEscrowClosed();
     res.json(updated);
   } catch (err) {
     next(err);

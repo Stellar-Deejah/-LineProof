@@ -1,19 +1,24 @@
 /**
- * Simple in-process rate limiter middleware.
+ * Rate limiter middleware backed by a {@link StorageAdapter}.
  *
- * Uses a sliding-window counter keyed on IP address. For production use,
- * swap this for a Redis-backed implementation (e.g. `express-rate-limit` +
- * `rate-limit-redis`) so limits are shared across multiple API replicas.
+ * The previous implementation kept its own module-level `Map`, so limits were
+ * per-process: they were wiped on restart and not shared across replicas, which
+ * let an attacker reset counters by forcing a restart or fanning out across
+ * instances (issue #4 / #12). The counter now lives in a `StorageAdapter`.
+ *
+ * The default adapter is the shared in-process `MemoryAdapter`, so behaviour and
+ * the synchronous `createRateLimiter(options)` signature are unchanged. Swapping
+ * in a shared store (Redis/Postgres) makes limits durable and replica-wide; a
+ * networked store would use an async adapter and an async middleware variant.
  */
 
 import type { Request, Response, NextFunction } from 'express';
+import { MemoryAdapter } from '../storage/memoryAdapter.js';
+import { defaultMemoryAdapter } from '../storage/index.js';
 
-interface WindowEntry {
-  count: number;
+interface WindowMeta {
   resetAt: number;
 }
-
-const store = new Map<string, WindowEntry>();
 
 export interface RateLimitOptions {
   /** Maximum requests allowed within the window. Default: 60 */
@@ -24,32 +29,50 @@ export interface RateLimitOptions {
   statusCode?: number;
   /** Message returned in the response body when the limit is exceeded. */
   message?: string;
+  /**
+   * Storage adapter holding the counters. Defaults to the shared in-process
+   * `MemoryAdapter`. Typed as the synchronous adapter so the middleware stays
+   * synchronous; a networked store needs an async variant.
+   */
+  store?: MemoryAdapter;
 }
+
+/** Monotonic id so each limiter instance keeps its counters in a private namespace. */
+let limiterSeq = 0;
 
 export function createRateLimiter(options: RateLimitOptions = {}) {
   const max = options.max ?? 60;
   const windowMs = options.windowMs ?? 60_000;
   const statusCode = options.statusCode ?? 429;
   const message = options.message ?? 'Too many requests, please try again later.';
+  const store = options.store ?? defaultMemoryAdapter;
+
+  const id = limiterSeq++;
+  const winNs = `ratelimit:win:${id}`;
+  const cntNs = `ratelimit:cnt:${id}`;
 
   return function rateLimiter(req: Request, res: Response, next: NextFunction) {
     const key = (req.ip ?? req.socket.remoteAddress ?? 'unknown').replace(/^::ffff:/, '');
     const now = Date.now();
 
-    let entry = store.get(key);
-    if (!entry || now > entry.resetAt) {
-      entry = { count: 1, resetAt: now + windowMs };
-      store.set(key, entry);
+    const meta = store.get<WindowMeta>(winNs, key);
+    let resetAt: number;
+    if (!meta || now > meta.resetAt) {
+      resetAt = now + windowMs;
+      store.set<WindowMeta>(winNs, key, { resetAt });
+      store.delete(cntNs, key);
     } else {
-      entry.count += 1;
+      resetAt = meta.resetAt;
     }
 
-    res.setHeader('X-RateLimit-Limit', max);
-    res.setHeader('X-RateLimit-Remaining', Math.max(0, max - entry.count));
-    res.setHeader('X-RateLimit-Reset', Math.ceil(entry.resetAt / 1000));
+    const count = store.increment(cntNs, key, 1, windowMs);
 
-    if (entry.count > max) {
-      res.setHeader('Retry-After', Math.ceil((entry.resetAt - now) / 1000));
+    res.setHeader('X-RateLimit-Limit', max);
+    res.setHeader('X-RateLimit-Remaining', Math.max(0, max - count));
+    res.setHeader('X-RateLimit-Reset', Math.ceil(resetAt / 1000));
+
+    if (count > max) {
+      res.setHeader('Retry-After', Math.ceil((resetAt - now) / 1000));
       return res.status(statusCode).json({ error: { message, status: statusCode } });
     }
 

@@ -3,13 +3,14 @@
  * These endpoints are safe to expose without rate limiting.
  */
 import { Router, type IRouter } from 'express';
-import { mockQueues, getQueueStats } from '../services/queueService.js';
+import { listQueues, getQueueStats } from '../services/queueService.js';
+import { healthPayload } from '../health.js';
 
 const router: IRouter = Router();
 
 /** GET /public/queues — list all queues (summary, no internal fields) */
 router.get('/queues', (req, res) => {
-  const summary = mockQueues.map(({ id, name, slug, status, enrolled, maxPositions, advancementRule }) => ({
+  const summary = listQueues().map(({ id, name, slug, status, enrolled, maxPositions, advancementRule }) => ({
     id,
     name,
     slug,
@@ -28,9 +29,15 @@ router.get('/queues/:id/stats', (req, res) => {
   res.json(stats);
 });
 
-/** GET /public/health — lightweight liveness check */
+/**
+ * GET /public/health — liveness check.
+ * Unified with GET /health so monitoring tools see one consistent shape
+ * regardless of which path they probe (issue #31 / #33). The legacy `ts` field
+ * is retained alongside the canonical `timestamp` for backward compatibility.
+ */
 router.get('/health', (req, res) => {
-  res.json({ status: 'ok', ts: new Date().toISOString() });
+  const payload = healthPayload();
+  res.json({ ...payload, ts: payload.timestamp });
 });
 
 export default router;

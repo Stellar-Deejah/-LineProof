@@ -1,3 +1,5 @@
+import { defaultMemoryAdapter } from '../storage/index.js';
+
 export type EnrollmentRecord = {
   queueId: string;
   identity: string;
@@ -6,13 +8,16 @@ export type EnrollmentRecord = {
   cancelled: boolean;
 };
 
-const enrollmentStore = new Map<string, EnrollmentRecord[]>();
-
-const enrollmentKey = (queueId: string, identity: string) => `${queueId}:${identity}`;
-const queueIndex = new Map<string, Set<string>>();
+// Enrollment state lives in the shared storage adapter (issue #4) instead of
+// module-level Maps. Records are keyed by identity; a per-queue index of
+// identities supports queue-level lookups. The MemoryAdapter stores references,
+// so in-place mutation of a record (e.g. cancellation) persists as before.
+const store = defaultMemoryAdapter;
+const NS_BY_IDENTITY = 'enrollments:byIdentity';
+const NS_QUEUE_INDEX = 'enrollments:queueIndex';
 
 export const enrollIdentity = (queueId: string, identity: string): EnrollmentRecord => {
-  const existing = enrollmentStore.get(identity) ?? [];
+  const existing = store.get<EnrollmentRecord[]>(NS_BY_IDENTITY, identity) ?? [];
   const conflict = existing.some((item) => item.queueId === queueId && !item.cancelled);
   if (conflict) {
     return { queueId, identity, enrolledAt: new Date().toISOString(), conflict: true, cancelled: false };
@@ -25,40 +30,44 @@ export const enrollIdentity = (queueId: string, identity: string): EnrollmentRec
     cancelled: false,
   };
   existing.push(record);
-  enrollmentStore.set(identity, existing);
+  store.set<EnrollmentRecord[]>(NS_BY_IDENTITY, identity, existing);
 
   // Maintain queue-level index
-  const queueSet = queueIndex.get(queueId) ?? new Set<string>();
+  const queueSet = store.get<Set<string>>(NS_QUEUE_INDEX, queueId) ?? new Set<string>();
   queueSet.add(identity);
-  queueIndex.set(queueId, queueSet);
+  store.set<Set<string>>(NS_QUEUE_INDEX, queueId, queueSet);
 
   return record;
 };
 
 export const cancelEnrollment = (queueId: string, identity: string): boolean => {
-  const existing = enrollmentStore.get(identity);
+  const existing = store.get<EnrollmentRecord[]>(NS_BY_IDENTITY, identity);
   if (!existing) return false;
   const record = existing.find((r) => r.queueId === queueId && !r.cancelled);
   if (!record) return false;
   record.cancelled = true;
-  const queueSet = queueIndex.get(queueId);
-  if (queueSet) queueSet.delete(identity);
+  store.set<EnrollmentRecord[]>(NS_BY_IDENTITY, identity, existing);
+  const queueSet = store.get<Set<string>>(NS_QUEUE_INDEX, queueId);
+  if (queueSet) {
+    queueSet.delete(identity);
+    store.set<Set<string>>(NS_QUEUE_INDEX, queueId, queueSet);
+  }
   return true;
 };
 
 export const getEnrollmentsByIdentity = (identity: string): EnrollmentRecord[] => {
-  return enrollmentStore.get(identity) ?? [];
+  return store.get<EnrollmentRecord[]>(NS_BY_IDENTITY, identity) ?? [];
 };
 
 /** @deprecated use getEnrollmentsByIdentity */
 export const getEnrollment = getEnrollmentsByIdentity;
 
 export const getEnrollmentsByQueue = (queueId: string): EnrollmentRecord[] => {
-  const identities = queueIndex.get(queueId);
+  const identities = store.get<Set<string>>(NS_QUEUE_INDEX, queueId);
   if (!identities) return [];
   const results: EnrollmentRecord[] = [];
   for (const identity of identities) {
-    const records = enrollmentStore.get(identity) ?? [];
+    const records = store.get<EnrollmentRecord[]>(NS_BY_IDENTITY, identity) ?? [];
     const active = records.filter((r) => r.queueId === queueId && !r.cancelled);
     results.push(...active);
   }

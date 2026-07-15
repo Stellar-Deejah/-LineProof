@@ -1,3 +1,5 @@
+import { defaultMemoryAdapter } from '../storage/index.js';
+
 export type EscrowStatus = 'Active' | 'Released' | 'Refunded' | 'Expired';
 
 export type EscrowRecord = {
@@ -12,7 +14,10 @@ export type EscrowRecord = {
   releasedAt?: string;
 };
 
-const escrowStore = new Map<string, EscrowRecord>();
+// Escrow records live in the shared storage adapter (issue #4), namespace
+// `escrow`, keyed by `${queueId}:${identity}`.
+const store = defaultMemoryAdapter;
+const NS = 'escrow';
 
 const HOLD_DAYS_DEFAULT = 30;
 
@@ -24,7 +29,7 @@ export const depositEscrow = (payload: {
   holdDays?: number;
 }): EscrowRecord => {
   const id = `${payload.queueId}:${payload.identity}`;
-  if (escrowStore.has(id)) {
+  if (store.get<EscrowRecord>(NS, id) !== undefined) {
     const error = new Error('Duplicate escrow record') as Error & { status: number };
     error.status = 409;
     throw error;
@@ -42,12 +47,12 @@ export const depositEscrow = (payload: {
     createdAt: createdAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
   };
-  escrowStore.set(id, record);
+  store.set<EscrowRecord>(NS, id, record);
   return record;
 };
 
 export const releaseEscrow = (escrowId: string): EscrowRecord | undefined => {
-  const record = escrowStore.get(escrowId);
+  const record = store.get<EscrowRecord>(NS, escrowId);
   if (!record) return undefined;
   if (record.status !== 'Active') {
     const error = new Error(`Cannot release escrow in status: ${record.status}`) as Error & { status: number };
@@ -56,11 +61,12 @@ export const releaseEscrow = (escrowId: string): EscrowRecord | undefined => {
   }
   record.status = 'Released';
   record.releasedAt = new Date().toISOString();
+  store.set<EscrowRecord>(NS, escrowId, record);
   return record;
 };
 
 export const refundEscrow = (escrowId: string): EscrowRecord | undefined => {
-  const record = escrowStore.get(escrowId);
+  const record = store.get<EscrowRecord>(NS, escrowId);
   if (!record) return undefined;
   if (record.status !== 'Active') {
     const error = new Error(`Cannot refund escrow in status: ${record.status}`) as Error & { status: number };
@@ -69,11 +75,12 @@ export const refundEscrow = (escrowId: string): EscrowRecord | undefined => {
   }
   record.status = 'Refunded';
   record.releasedAt = new Date().toISOString();
+  store.set<EscrowRecord>(NS, escrowId, record);
   return record;
 };
 
 export const expireEscrow = (escrowId: string): EscrowRecord | undefined => {
-  const record = escrowStore.get(escrowId);
+  const record = store.get<EscrowRecord>(NS, escrowId);
   if (!record) return undefined;
   if (record.status !== 'Active') {
     const error = new Error(`Cannot expire escrow in status: ${record.status}`) as Error & { status: number };
@@ -88,9 +95,10 @@ export const expireEscrow = (escrowId: string): EscrowRecord | undefined => {
   }
   record.status = 'Expired';
   record.releasedAt = now.toISOString();
+  store.set<EscrowRecord>(NS, escrowId, record);
   return record;
 };
 
 export const getEscrow = (escrowId: string): EscrowRecord | undefined => {
-  return escrowStore.get(escrowId);
+  return store.get<EscrowRecord>(NS, escrowId);
 };

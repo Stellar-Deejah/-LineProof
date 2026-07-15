@@ -2,16 +2,11 @@
   "name": "lineproof",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@9.15.9",
-  "engines": {
-    "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
-  },
   "description": "Soroban-powered protocol for provably fair, non-transferable waiting lists",
   "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": ">=20 <23",
-    "pnpm": "9.15.9"
+    "node": ">=20",
+    "pnpm": ">=9.0.0"
   },
   "scripts": {
     "build": "pnpm run build:contracts && pnpm run build:sdk",

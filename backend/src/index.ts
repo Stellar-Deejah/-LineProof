@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import express from 'express';
+import express, { type Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -10,8 +10,12 @@ import publicRoutes from './routes/public.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { defaultRateLimiter, writeRateLimiter } from './middleware/rateLimiter.js';
 import { requestLogger } from './middleware/requestLogger.js';
+import { register, METRICS_CONTENT_TYPE } from './metrics/registry.js';
+import { healthPayload } from './health.js';
+import { config } from './config.js';
+import { EventIndexer } from './services/eventIndexer.js';
 
-const app = express();
+const app: Express = express();
 
 const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173')
   .split(',')
@@ -19,17 +23,25 @@ const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173')
 
 app.use(helmet());
 app.use(cors({ origin: allowedOrigins }));
+
+// GET /metrics is mounted before logging and rate limiting so scrapes are never
+// throttled (issue #31) and don't pollute request metrics with self-traffic.
+app.get('/metrics', async (_req, res, next) => {
+  try {
+    res.setHeader('Content-Type', METRICS_CONTENT_TYPE);
+    res.send(await register.metrics());
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(requestLogger);
 app.use(defaultRateLimiter);
 
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV ?? 'development',
-  });
+  res.json(healthPayload());
 });
 
 app.use('/api/queues', queueRoutes);
@@ -39,7 +51,20 @@ app.use('/public', publicRoutes);
 
 app.use(errorHandler);
 
-const port = process.env.PORT ? Number(process.env.PORT) : 4000;
+// Contract event indexer (issue #31). Runs only when contract IDs are
+// configured; the poll loop is a no-op until the SDK Soroban RPC read path
+// lands. The interval is unref'd so it never blocks process exit.
+let eventIndexer: EventIndexer | undefined;
+if (config.contractsConfigured) {
+  eventIndexer = new EventIndexer({
+    contractIds: Object.values(config.contractIds).filter((id): id is string => Boolean(id)),
+  });
+  eventIndexer.start();
+}
+
+const port = config.port;
 app.listen(port, () => {
-  console.log(`LineProof backend listening on :${port} [${process.env.NODE_ENV ?? 'development'}]`);
+  console.log(`LineProof backend listening on :${port} [${config.nodeEnv}]`);
 });
+
+export { app, eventIndexer };
