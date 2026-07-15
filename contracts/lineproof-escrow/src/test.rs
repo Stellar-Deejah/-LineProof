@@ -1,10 +1,10 @@
 use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
 
-use crate::{EscrowConfig, EscrowImpl, EscrowStatus};
+use crate::{Escrow, EscrowConfig, EscrowImpl, EscrowStatus};
 
 fn setup() -> (Env, Address) {
     let env = Env::default();
-    let admin = Address::new(&env, &[1; 7]);
+    let admin = Address::generate(&env);
     (env, admin)
 }
 
@@ -33,9 +33,15 @@ fn test_set_and_get_config() {
 fn test_deposit_creates_record() {
     let (env, admin) = setup();
     EscrowImpl::set_config(env.clone(), admin.clone(), make_config(&env, &admin));
-    let user = Address::new(&env, &[9u8; 7]);
-    let asset = Address::new(&env, &[8u8; 7]);
-    EscrowImpl::deposit(env.clone(), user.clone(), Symbol::new(&env, "sneaker-drop"), 500i128, asset.clone());
+    let user = Address::generate(&env);
+    let asset = Address::generate(&env);
+    EscrowImpl::deposit(
+        env.clone(),
+        user.clone(),
+        Symbol::new(&env, "sneaker-drop"),
+        500i128,
+        asset.clone(),
+    );
     let record = EscrowImpl::get_record(env.clone(), user.clone(), Symbol::new(&env, "sneaker-drop")).unwrap();
     assert_eq!(record.amount, 500i128);
     assert!(matches!(record.status, EscrowStatus::Active));
@@ -45,11 +51,23 @@ fn test_deposit_creates_record() {
 fn test_get_total_held_accumulates() {
     let (env, admin) = setup();
     EscrowImpl::set_config(env.clone(), admin.clone(), make_config(&env, &admin));
-    let user1 = Address::new(&env, &[9u8; 7]);
-    let user2 = Address::new(&env, &[12u8; 7]);
-    let asset = Address::new(&env, &[8u8; 7]);
-    EscrowImpl::deposit(env.clone(), user1.clone(), Symbol::new(&env, "sneaker-drop"), 500i128, asset.clone());
-    EscrowImpl::deposit(env.clone(), user2.clone(), Symbol::new(&env, "sneaker-drop"), 300i128, asset.clone());
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+    let asset = Address::generate(&env);
+    EscrowImpl::deposit(
+        env.clone(),
+        user1.clone(),
+        Symbol::new(&env, "sneaker-drop"),
+        500i128,
+        asset.clone(),
+    );
+    EscrowImpl::deposit(
+        env.clone(),
+        user2.clone(),
+        Symbol::new(&env, "sneaker-drop"),
+        300i128,
+        asset.clone(),
+    );
     let total = EscrowImpl::get_total_held(env.clone(), Symbol::new(&env, "sneaker-drop"));
     assert_eq!(total, 800i128);
 }
@@ -58,11 +76,22 @@ fn test_get_total_held_accumulates() {
 fn test_release_changes_status() {
     let (env, admin) = setup();
     EscrowImpl::set_config(env.clone(), admin.clone(), make_config(&env, &admin));
-    let user = Address::new(&env, &[3u8; 7]);
-    let asset = Address::new(&env, &[8u8; 7]);
-    EscrowImpl::deposit(env.clone(), user.clone(), Symbol::new(&env, "sneaker-drop"), 500i128, asset);
-    EscrowImpl::release(env.clone(), admin.clone(), user.clone(), Symbol::new(&env, "sneaker-drop"));
-    let record = EscrowImpl::get_record(env, user, Symbol::new(&env, "sneaker-drop")).unwrap();
+    let user = Address::generate(&env);
+    let asset = Address::generate(&env);
+    EscrowImpl::deposit(
+        env.clone(),
+        user.clone(),
+        Symbol::new(&env, "sneaker-drop"),
+        500i128,
+        asset,
+    );
+    EscrowImpl::release(
+        env.clone(),
+        admin.clone(),
+        user.clone(),
+        Symbol::new(&env, "sneaker-drop"),
+    );
+    let record = EscrowImpl::get_record(env.clone(), user, Symbol::new(&env, "sneaker-drop")).unwrap();
     assert!(matches!(record.status, EscrowStatus::Released));
 }
 
@@ -70,11 +99,22 @@ fn test_release_changes_status() {
 fn test_refund_changes_status() {
     let (env, admin) = setup();
     EscrowImpl::set_config(env.clone(), admin.clone(), make_config(&env, &admin));
-    let user = Address::new(&env, &[4u8; 7]);
-    let asset = Address::new(&env, &[8u8; 7]);
-    EscrowImpl::deposit(env.clone(), user.clone(), Symbol::new(&env, "sneaker-drop"), 500i128, asset);
-    EscrowImpl::refund(env.clone(), admin.clone(), user.clone(), Symbol::new(&env, "sneaker-drop"));
-    let record = EscrowImpl::get_record(env, user, Symbol::new(&env, "sneaker-drop")).unwrap();
+    let user = Address::generate(&env);
+    let asset = Address::generate(&env);
+    EscrowImpl::deposit(
+        env.clone(),
+        user.clone(),
+        Symbol::new(&env, "sneaker-drop"),
+        500i128,
+        asset,
+    );
+    EscrowImpl::refund(
+        env.clone(),
+        admin.clone(),
+        user.clone(),
+        Symbol::new(&env, "sneaker-drop"),
+    );
+    let record = EscrowImpl::get_record(env.clone(), user, Symbol::new(&env, "sneaker-drop")).unwrap();
     assert!(matches!(record.status, EscrowStatus::Refunded));
 }
 
@@ -83,9 +123,9 @@ fn test_refund_changes_status() {
 fn test_deposit_rejects_non_positive_amount() {
     let (env, admin) = setup();
     EscrowImpl::set_config(env.clone(), admin.clone(), make_config(&env, &admin));
-    let user = Address::new(&env, &[5u8; 7]);
-    let asset = Address::new(&env, &[8u8; 7]);
-    EscrowImpl::deposit(env, user, Symbol::new(&env, "sneaker-drop"), 0i128, asset);
+    let user = Address::generate(&env);
+    let asset = Address::generate(&env);
+    EscrowImpl::deposit(env.clone(), user, Symbol::new(&env, "sneaker-drop"), 0i128, asset);
 }
 
 #[test]
@@ -93,8 +133,8 @@ fn test_deposit_rejects_non_positive_amount() {
 fn test_deposit_rejects_above_max() {
     let (env, admin) = setup();
     EscrowImpl::set_config(env.clone(), admin.clone(), make_config(&env, &admin));
-    let user = Address::new(&env, &[6u8; 7]);
-    let asset = Address::new(&env, &[8u8; 7]);
+    let user = Address::generate(&env);
+    let asset = Address::generate(&env);
     EscrowImpl::deposit(env.clone(), user, Symbol::new(&env, "sneaker-drop"), 5000i128, asset);
 }
 
@@ -103,10 +143,16 @@ fn test_deposit_rejects_above_max() {
 fn test_deposit_rejects_duplicate_for_same_user_and_queue() {
     let (env, admin) = setup();
     EscrowImpl::set_config(env.clone(), admin.clone(), make_config(&env, &admin));
-    let user = Address::new(&env, &[7u8; 7]);
-    let asset = Address::new(&env, &[8u8; 7]);
-    EscrowImpl::deposit(env.clone(), user.clone(), Symbol::new(&env, "sneaker-drop"), 250i128, asset.clone());
-    EscrowImpl::deposit(env, user, Symbol::new(&env, "sneaker-drop"), 300i128, asset);
+    let user = Address::generate(&env);
+    let asset = Address::generate(&env);
+    EscrowImpl::deposit(
+        env.clone(),
+        user.clone(),
+        Symbol::new(&env, "sneaker-drop"),
+        250i128,
+        asset.clone(),
+    );
+    EscrowImpl::deposit(env.clone(), user, Symbol::new(&env, "sneaker-drop"), 300i128, asset);
 }
 
 #[test]
@@ -115,11 +161,17 @@ fn test_expire_updates_status() {
     let mut config = make_config(&env, &admin);
     config.hold_period_days = 0; // expires immediately
     EscrowImpl::set_config(env.clone(), admin.clone(), config);
-    let user = Address::new(&env, &[10u8; 7]);
-    let asset = Address::new(&env, &[8u8; 7]);
-    EscrowImpl::deposit(env.clone(), user.clone(), Symbol::new(&env, "sneaker-drop"), 200i128, asset);
+    let user = Address::generate(&env);
+    let asset = Address::generate(&env);
+    EscrowImpl::deposit(
+        env.clone(),
+        user.clone(),
+        Symbol::new(&env, "sneaker-drop"),
+        200i128,
+        asset,
+    );
     EscrowImpl::expire(env.clone(), user.clone(), Symbol::new(&env, "sneaker-drop"));
-    let record = EscrowImpl::get_record(env, user, Symbol::new(&env, "sneaker-drop")).unwrap();
+    let record = EscrowImpl::get_record(env.clone(), user, Symbol::new(&env, "sneaker-drop")).unwrap();
     assert!(matches!(record.status, EscrowStatus::Expired));
 }
 
@@ -128,9 +180,20 @@ fn test_expire_updates_status() {
 fn test_release_already_released_panics() {
     let (env, admin) = setup();
     EscrowImpl::set_config(env.clone(), admin.clone(), make_config(&env, &admin));
-    let user = Address::new(&env, &[11u8; 7]);
-    let asset = Address::new(&env, &[8u8; 7]);
-    EscrowImpl::deposit(env.clone(), user.clone(), Symbol::new(&env, "sneaker-drop"), 500i128, asset);
-    EscrowImpl::release(env.clone(), admin.clone(), user.clone(), Symbol::new(&env, "sneaker-drop"));
-    EscrowImpl::release(env, admin, user, Symbol::new(&env, "sneaker-drop"));
+    let user = Address::generate(&env);
+    let asset = Address::generate(&env);
+    EscrowImpl::deposit(
+        env.clone(),
+        user.clone(),
+        Symbol::new(&env, "sneaker-drop"),
+        500i128,
+        asset,
+    );
+    EscrowImpl::release(
+        env.clone(),
+        admin.clone(),
+        user.clone(),
+        Symbol::new(&env, "sneaker-drop"),
+    );
+    EscrowImpl::release(env.clone(), admin, user, Symbol::new(&env, "sneaker-drop"));
 }

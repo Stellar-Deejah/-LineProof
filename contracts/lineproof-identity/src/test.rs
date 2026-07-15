@@ -1,9 +1,9 @@
+use crate::{BindingStatus, Identity, IdentityImpl};
 use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
-use crate::{BindingStatus, IdentityImpl};
 
 fn setup() -> (Env, Address) {
     let env = Env::default();
-    let user = Address::new(&env, &[1; 7]);
+    let user = Address::generate(&env);
     (env, user)
 }
 
@@ -13,7 +13,7 @@ fn test_bind_creates_record_with_timestamp() {
     let queue_id = Symbol::new(&env, "sneaker-drop");
     IdentityImpl::bind(env.clone(), user.clone(), queue_id.clone());
     let record = IdentityImpl::get_record(env.clone(), user.clone()).unwrap();
-    assert!(record.queues.iter().any(|q| q == &queue_id));
+    assert!(record.queues.iter().any(|q| q == queue_id));
     assert!(matches!(record.status, BindingStatus::Bound));
     // bound_at should be set (ledger timestamp in tests defaults to 0)
     assert_eq!(record.bound_at, 0); // default test env timestamp
@@ -38,7 +38,7 @@ fn test_is_bound_returns_false_before_bind() {
 #[test]
 fn test_can_transfer_returns_false_for_different_identities() {
     let (env, user) = setup();
-    let other = Address::new(&env, &[2; 7]);
+    let other = Address::generate(&env);
     let queue_id = Symbol::new(&env, "drop");
     IdentityImpl::bind(env.clone(), user.clone(), queue_id.clone());
     assert!(!IdentityImpl::can_transfer(env, user, other, queue_id));
@@ -54,7 +54,7 @@ fn test_can_transfer_returns_true_same_identity() {
 #[test]
 fn test_record_transfer_attempt_persists() {
     let (env, user) = setup();
-    let other = Address::new(&env, &[3u8; 7]);
+    let other = Address::generate(&env);
     let queue_id = Symbol::new(&env, "drop");
     IdentityImpl::record_transfer_attempt(env.clone(), user.clone(), other.clone(), queue_id.clone());
     let key = IdentityImpl::attempt_key(&env, &user, &other, &queue_id);
@@ -83,7 +83,7 @@ fn test_initialize_twice_panics() {
 fn test_revoke_sets_revoked_status() {
     let (env, admin) = setup();
     IdentityImpl::initialize(env.clone(), admin.clone());
-    let user = Address::new(&env, &[5u8; 7]);
+    let user = Address::generate(&env);
     let queue_id = Symbol::new(&env, "q");
     IdentityImpl::bind(env.clone(), user.clone(), queue_id);
     IdentityImpl::revoke(env.clone(), admin.clone(), user.clone());
@@ -96,7 +96,7 @@ fn test_revoke_sets_revoked_status() {
 fn test_bind_after_revoke_panics() {
     let (env, admin) = setup();
     IdentityImpl::initialize(env.clone(), admin.clone());
-    let user = Address::new(&env, &[6u8; 7]);
+    let user = Address::generate(&env);
     let q1 = Symbol::new(&env, "q1");
     let q2 = Symbol::new(&env, "q2");
     IdentityImpl::bind(env.clone(), user.clone(), q1);

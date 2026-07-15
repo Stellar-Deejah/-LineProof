@@ -1,4 +1,5 @@
-use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, Symbol};
+#![no_std]
+use soroban_sdk::{contract, contractclient, contractimpl, contracttype, Address, BytesN, Env, Symbol};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -28,7 +29,7 @@ pub struct EnrollmentRecord {
     pub finalized: bool,
 }
 
-#[contract]
+#[contractclient(name = "EnrollmentClient")]
 pub trait Enrollment {
     fn enroll(env: Env, caller: Address, queue_id: Symbol) -> EnrollmentProof;
     fn cancel(env: Env, caller: Address, queue_id: Symbol);
@@ -39,6 +40,7 @@ pub trait Enrollment {
     fn enrollment_count(env: Env, queue_id: Symbol) -> u32;
 }
 
+#[contract]
 pub struct EnrollmentImpl;
 
 #[contractimpl]
@@ -65,7 +67,7 @@ impl Enrollment for EnrollmentImpl {
             identity: caller.clone(),
             queue_id: queue_id.clone(),
             enrolled_at,
-            proof_hash: hash,
+            proof_hash: hash.clone(),
             duplicate_count: 0,
             finalized: false,
         };
@@ -77,7 +79,7 @@ impl Enrollment for EnrollmentImpl {
             queue_id.clone(),
             &caller,
             enrolled_at,
-            hash,
+            hash.clone(),
         );
         EnrollmentProof {
             queue_id,
@@ -100,7 +102,7 @@ impl Enrollment for EnrollmentImpl {
             queue_id,
             &caller,
             env.ledger().timestamp(),
-            [0u8; 32],
+            BytesN::from_array(&env, &[0u8; 32]),
         );
     }
 
@@ -133,7 +135,14 @@ impl Enrollment for EnrollmentImpl {
         record.finalized = true;
         let key = Self::record_key(&env, &identity, &queue_id);
         env.storage().persistent().set(&key, &record);
-        emit(&env, Symbol::new(&env, "Finalized"), queue_id, &identity, record.enrolled_at, record.proof_hash);
+        emit(
+            &env,
+            Symbol::new(&env, "Finalized"),
+            queue_id,
+            &identity,
+            record.enrolled_at,
+            record.proof_hash,
+        );
     }
 
     fn enrollment_count(env: Env, queue_id: Symbol) -> u32 {
@@ -166,7 +175,7 @@ impl EnrollmentImpl {
 
     /// Produces a 32-byte proof hash by XOR-folding the SHA-256-like preimage.
     /// In production this should use env.crypto().sha256() once available.
-    fn compute_proof_hash(env: &Env, identity: &Address, queue_id: &Symbol, enrolled_at: u64) -> BytesN<32> {
+    fn compute_proof_hash(env: &Env, _identity: &Address, _queue_id: &Symbol, enrolled_at: u64) -> BytesN<32> {
         let ts_bytes = enrolled_at.to_be_bytes();
         let mut hash = [0u8; 32];
         // Mix timestamp bytes into the hash
@@ -184,11 +193,8 @@ impl EnrollmentImpl {
 }
 
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64, _hash: BytesN<32>) {
-    env.events().publish((
-        Symbol::new(env, "lineproof.enrollment"),
-        kind,
-        queue_id,
-    ));
+    env.events()
+        .publish((Symbol::new(env, "lineproof.enrollment"), kind, queue_id), ());
 }
 
 #[cfg(test)]

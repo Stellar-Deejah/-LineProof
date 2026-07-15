@@ -1,4 +1,5 @@
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol};
+#![no_std]
+use soroban_sdk::{contract, contractclient, contractimpl, contracttype, Address, Env, Symbol};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -32,7 +33,7 @@ pub struct EscrowConfig {
     pub admin: Address,
 }
 
-#[contract]
+#[contractclient(name = "EscrowClient")]
 pub trait Escrow {
     fn deposit(env: Env, caller: Address, queue_id: Symbol, amount: i128, asset: Address);
     fn release(env: Env, admin: Address, identity: Address, queue_id: Symbol);
@@ -44,6 +45,7 @@ pub trait Escrow {
     fn get_total_held(env: Env, queue_id: Symbol) -> i128;
 }
 
+#[contract]
 pub struct EscrowImpl;
 
 #[contractimpl]
@@ -141,16 +143,13 @@ impl Escrow for EscrowImpl {
 
     fn get_config(env: Env, queue_id: Symbol) -> EscrowConfig {
         let key = Self::config_key(&env, &queue_id);
-        env.storage()
-            .persistent()
-            .get(&key)
-            .unwrap_or(EscrowConfig {
-                queue_id,
-                min_deposit: 0,
-                max_deposit: i128::MAX,
-                hold_period_days: 30,
-                admin: env.current_contract_address(),
-            })
+        env.storage().persistent().get(&key).unwrap_or(EscrowConfig {
+            queue_id,
+            min_deposit: 0,
+            max_deposit: i128::MAX,
+            hold_period_days: 30,
+            admin: env.current_contract_address(),
+        })
     }
 
     fn set_config(env: Env, admin: Address, config: EscrowConfig) {
@@ -188,11 +187,8 @@ impl EscrowImpl {
 }
 
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _amount: i128) {
-    env.events().publish((
-        Symbol::new(env, "lineproof.escrow"),
-        kind,
-        queue_id,
-    ));
+    env.events()
+        .publish((Symbol::new(env, "lineproof.escrow"), kind, queue_id), ());
 }
 
 #[cfg(test)]

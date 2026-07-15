@@ -1,10 +1,10 @@
 use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
 
-use crate::{DuplicateBehavior, EnrollmentImpl};
+use crate::{DuplicateBehavior, Enrollment, EnrollmentImpl};
 
 fn setup() -> (Env, Address) {
     let env = Env::default();
-    let caller = Address::new(&env, &[1; 7]);
+    let caller = Address::generate(&env);
     (env, caller)
 }
 
@@ -34,7 +34,11 @@ fn test_enroll_rejects_duplicate_by_default() {
 fn test_is_enrolled_returns_correct_state() {
     let (env, caller) = setup();
     let queue_id = Symbol::new(&env, "visa");
-    assert!(!EnrollmentImpl::is_enrolled(env.clone(), caller.clone(), queue_id.clone()));
+    assert!(!EnrollmentImpl::is_enrolled(
+        env.clone(),
+        caller.clone(),
+        queue_id.clone()
+    ));
     EnrollmentImpl::enroll(env.clone(), caller.clone(), queue_id.clone());
     assert!(EnrollmentImpl::is_enrolled(env, caller, queue_id));
 }
@@ -52,14 +56,14 @@ fn test_cancel_removes_enrollment() {
 #[should_panic(expected = "not enrolled")]
 fn test_cancel_panics_when_not_enrolled() {
     let (env, caller) = setup();
-    EnrollmentImpl::cancel(env, caller, Symbol::new(&env, "absent"));
+    EnrollmentImpl::cancel(env.clone(), caller, Symbol::new(&env, "absent"));
 }
 
 #[test]
 fn test_multiple_users_same_queue() {
     let (env, _) = setup();
-    let u1 = Address::new(&env, &[1u8; 7]);
-    let u2 = Address::new(&env, &[2u8; 7]);
+    let u1 = Address::generate(&env);
+    let u2 = Address::generate(&env);
     let queue_id = Symbol::new(&env, "shared");
     EnrollmentImpl::enroll(env.clone(), u1.clone(), queue_id.clone());
     EnrollmentImpl::enroll(env.clone(), u2.clone(), queue_id.clone());
@@ -77,11 +81,11 @@ fn test_set_duplicate_behavior() {
 #[test]
 fn test_finalize_enrollment() {
     let (env, admin) = setup();
-    let user = Address::new(&env, &[5u8; 7]);
+    let user = Address::generate(&env);
     let queue_id = Symbol::new(&env, "fin-q");
     EnrollmentImpl::enroll(env.clone(), user.clone(), queue_id.clone());
     EnrollmentImpl::finalize_enrollment(env.clone(), admin.clone(), user.clone(), queue_id.clone());
-    let record = EnrollmentImpl::enrollment_record(env, user, queue_id).unwrap();
+    let record = EnrollmentImpl::enrollment_record(env.clone(), user, queue_id).unwrap();
     assert!(record.finalized);
 }
 
@@ -89,7 +93,7 @@ fn test_finalize_enrollment() {
 #[should_panic(expected = "already finalized")]
 fn test_finalize_twice_panics() {
     let (env, admin) = setup();
-    let user = Address::new(&env, &[6u8; 7]);
+    let user = Address::generate(&env);
     let queue_id = Symbol::new(&env, "fin2");
     EnrollmentImpl::enroll(env.clone(), user.clone(), queue_id.clone());
     EnrollmentImpl::finalize_enrollment(env.clone(), admin.clone(), user.clone(), queue_id.clone());
@@ -99,6 +103,6 @@ fn test_finalize_twice_panics() {
 #[test]
 fn test_enrollment_record_returns_none_when_missing() {
     let (env, caller) = setup();
-    let result = EnrollmentImpl::enrollment_record(env, caller, Symbol::new(&env, "missing"));
+    let result = EnrollmentImpl::enrollment_record(env.clone(), caller, Symbol::new(&env, "missing"));
     assert!(result.is_none());
 }

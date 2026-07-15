@@ -1,4 +1,5 @@
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Vec};
+#![no_std]
+use soroban_sdk::{contract, contractclient, contractimpl, contracttype, Address, BytesN, Env, Symbol, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -42,7 +43,7 @@ pub enum PositionStatus {
     Cancelled,
 }
 
-#[contract]
+#[contractclient(name = "QueueClient")]
 pub trait Queue {
     fn initialize(env: Env, admin: Address, config: QueueConfig);
     fn open_enrollment(env: Env, admin: Address);
@@ -55,8 +56,10 @@ pub trait Queue {
     fn current_position_index(env: Env) -> u32;
     fn total_enrolled(env: Env) -> u32;
     fn close(env: Env, admin: Address);
+    fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>);
 }
 
+#[contract]
 pub struct QueueImpl;
 
 #[contractimpl]
@@ -171,7 +174,7 @@ impl Queue for QueueImpl {
                 break;
             }
             let id = idx + 1;
-            if let Some(mut pos) = Self::get_position(&env, id) {
+            if let Some(mut pos) = Self::get_position(env.clone(), id) {
                 if matches!(pos.status, PositionStatus::Pending) {
                     pos.status = PositionStatus::Advanced;
                     pos.advanced_at = Some(env.ledger().timestamp());
@@ -190,7 +193,7 @@ impl Queue for QueueImpl {
             emit(
                 &env,
                 Symbol::new(&env, "Advanced"),
-                *id,
+                id,
                 &admin,
                 env.ledger().timestamp(),
             );
@@ -239,6 +242,15 @@ impl Queue for QueueImpl {
             env.ledger().timestamp(),
         );
     }
+
+    fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) {
+        admin.require_auth();
+        let config = Self::get_config_internal(&env);
+        if config.admin != admin {
+            panic!("not admin");
+        }
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+    }
 }
 
 impl QueueImpl {
@@ -264,7 +276,7 @@ impl QueueImpl {
 
 fn emit(env: &Env, kind: Symbol, position_id: u32, _identity: &Address, _timestamp: u64) {
     env.events()
-        .publish((Symbol::new(env, "lineproof.queue"), kind, position_id));
+        .publish((Symbol::new(env, "lineproof.queue"), kind, position_id), ());
 }
 
 #[cfg(test)]
