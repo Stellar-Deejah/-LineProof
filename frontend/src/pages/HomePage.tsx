@@ -7,7 +7,7 @@ import Spinner from '../components/Spinner';
 
 export default function HomePage() {
   const { queues, loading } = useQueues();
-  const openQueues = queues.filter((q) => q.status === 'Open' || q.status === 'EnrollmentOpen');
+  const openQueues = queues.filter((q) => q.status === 'EnrollmentOpen');
 
   return (
     <div className="space-y-10">

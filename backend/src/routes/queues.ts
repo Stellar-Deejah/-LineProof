@@ -1,6 +1,6 @@
 import { Router, type IRouter, Response } from 'express';
 import { z } from 'zod';
-import { mockQueues, getQueueById, createQueue, advanceQueue, closeQueue, getQueueStats } from '../services/queueService.js';
+import { mockQueues, getQueueById, createQueue, advanceQueue, closeQueue, getQueueStats, openEnrollment, closeEnrollment } from '../services/queueService.js';
 
 const router: IRouter = Router();
 
@@ -60,6 +60,26 @@ router.post('/:id/advance', (req: any, res: Response, next) => {
 router.post('/:id/close', (req: any, res: Response, next) => {
   try {
     const queue = closeQueue(req.params.id);
+    if (!queue) return res.status(404).json({ message: 'Queue not found' });
+    res.json(queue);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/open-enrollment', (req: any, res: Response, next) => {
+  try {
+    const queue = openEnrollment(req.params.id);
+    if (!queue) return res.status(404).json({ message: 'Queue not found' });
+    res.json(queue);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/close-enrollment', (req: any, res: Response, next) => {
+  try {
+    const queue = closeEnrollment(req.params.id);
     if (!queue) return res.status(404).json({ message: 'Queue not found' });
     res.json(queue);
   } catch (err) {

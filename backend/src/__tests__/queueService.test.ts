@@ -5,6 +5,9 @@ let getQueueById: typeof import('../services/queueService.js').getQueueById;
 let advanceQueue: typeof import('../services/queueService.js').advanceQueue;
 let closeQueue: typeof import('../services/queueService.js').closeQueue;
 let getQueueStats: typeof import('../services/queueService.js').getQueueStats;
+let openEnrollment: typeof import('../services/queueService.js').openEnrollment;
+let closeEnrollment: typeof import('../services/queueService.js').closeEnrollment;
+let QueueStatus: typeof import('../schemas/queueStatus.js').QueueStatus;
 
 beforeEach(async () => {
   const mod = await import('../services/queueService.js?t=' + Date.now());
@@ -13,12 +16,16 @@ beforeEach(async () => {
   advanceQueue = mod.advanceQueue;
   closeQueue = mod.closeQueue;
   getQueueStats = mod.getQueueStats;
+  openEnrollment = mod.openEnrollment;
+  closeEnrollment = mod.closeEnrollment;
+  const modEnum = await import('../schemas/queueStatus.js?t=' + Date.now());
+  QueueStatus = modEnum.QueueStatus;
 });
 
 describe('createQueue', () => {
   it('creates a queue in Draft status', () => {
     const q = createQueue({ name: 'Test Queue', slug: 'test-q', maxPositions: 50 });
-    expect(q.status).toBe('Draft');
+    expect(q.status).toBe(QueueStatus.Draft);
     expect(q.enrolled).toBe(0);
     expect(q.advanced).toBe(0);
   });
@@ -32,10 +39,12 @@ describe('createQueue', () => {
 describe('advanceQueue', () => {
   it('advances enrolled positions and sets AdvancementActive', () => {
     const q = createQueue({ name: 'AQ', slug: 'adv-q', maxPositions: 20 });
+    openEnrollment(q.id);
+    closeEnrollment(q.id);
     // Manually bump enrolled count since fixture has enrolled=0
     (q as any).enrolled = 10;
     const updated = advanceQueue(q.id, 5);
-    expect(updated?.status).toBe('AdvancementActive');
+    expect(updated?.status).toBe(QueueStatus.AdvancementActive);
     expect(updated?.advanced).toBe(5);
   });
 
@@ -45,8 +54,10 @@ describe('advanceQueue', () => {
 
   it('throws on advancing a closed queue', () => {
     const q = createQueue({ name: 'CQ', slug: 'close-q', maxPositions: 5 });
+    openEnrollment(q.id);
+    closeEnrollment(q.id);
     closeQueue(q.id);
-    expect(() => advanceQueue(q.id, 1)).toThrow('Queue is closed');
+    expect(() => advanceQueue(q.id, 1)).toThrow(/Invalid status transition/);
   });
 });
 

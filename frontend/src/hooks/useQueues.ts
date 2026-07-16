@@ -8,7 +8,7 @@ export type QueueSummary = {
   maxPositions: number;
   enrolled: number;
   advanced: number;
-  status: 'Draft' | 'Open' | 'EnrollmentOpen' | 'EnrollmentClosed' | 'AdvancementActive' | 'Closed';
+  status: 'Draft' | 'EnrollmentOpen' | 'EnrollmentClosed' | 'AdvancementActive' | 'Closed';
   advancementRule: 'FIFO' | 'Priority' | 'VerifiableRandomness';
   escrowAsset: string;
   escrowAmount: number;
