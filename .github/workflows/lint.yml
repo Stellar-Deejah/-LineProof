@@ -61,6 +61,8 @@ jobs:
           node-version: 22
       - name: Install workspace dependencies
         run: pnpm install --no-frozen-lockfile
+      - name: Build SDK (backend imports @lineproof/sdk)
+        run: pnpm --filter @lineproof/sdk build
       - name: Typecheck backend
         run: pnpm --filter @lineproof/backend exec tsc --noEmit
 
