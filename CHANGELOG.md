@@ -46,6 +46,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - [scripts] `fund_testnet_accounts.sh`, `check_contract_storage.sh`, `export_events.sh`
 
 ### Fixed
+- [sdk] **BREAKING**: Fixed critical bug where `Keypair.fromSecret()` was called with public key strings instead of secret keys across all transaction clients (`EnrollmentClient`, `EscrowClient`, `QueueClient`, `IdentityClient`). This caused TypeErrors at runtime and prevented all on-chain interactions. Replaced with `requireKeypair()` helper that validates credentials before transaction building.
+- [sdk] **BREAKING**: Fixed read-only contract queries (`getPosition`, `isEnrolled`, `isBound`) that were incorrectly using `Horizon.Server` instead of `SorobanRpc.Server`. Added `sorobanServer` instance to `LineProofClient` and implemented proper Soroban RPC simulation with XDR encoding/decoding for view calls.
+- [sdk] Added `LineProofClient.readOnly()` factory method for creating read-only client instances that explicitly disable mutation methods at construction time, providing clearer error messages when credentials are missing.
+- [sdk] Removed all `NOT_IMPLEMENTED` errors from SDK - view methods now execute real Soroban contract simulations.
 - [contracts/escrow] `expire()` now updates record status to `Expired` in storage
 - [contracts/queue] `advance()` state machine bug — no longer reverts to `EnrollmentClosed` mid-batch
 - [contracts/identity] `bound_at` now set to ledger timestamp on first bind
