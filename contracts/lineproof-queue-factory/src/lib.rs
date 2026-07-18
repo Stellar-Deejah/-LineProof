@@ -5,6 +5,11 @@ const QUEUE_REGISTRY_PREFIX: &str = "queue";
 /// Storage key for the slug index (tracks all registered slugs)
 const SLUG_INDEX_KEY: &str = "slug_idx";
 
+/// TTL threshold: renew if remaining TTL is below this many ledgers (~13.8 hours at 5s/ledger)
+const TTL_THRESHOLD: u32 = 10_000;
+/// TTL extension target: extend to this many ledgers (~1 year at 5s/ledger)
+const TTL_EXTEND_TO: u32 = 6_307_200;
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QueueMetadata {
@@ -59,10 +64,13 @@ impl QueueFactory for QueueFactoryImpl {
         }
         let config = FactoryConfig { admin, min_version: 1, max_version: 1 };
         env.storage().persistent().set(&key, &config);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         // Initialize empty slug index
         let idx_key = Symbol::new(&env, SLUG_INDEX_KEY);
         let empty: Vec<Symbol> = Vec::new(&env);
         env.storage().persistent().set(&idx_key, &empty);
+        env.storage().persistent().extend_ttl(&idx_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage().persistent().extend_ttl(&env.current_contract_address(), TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "Init"), Symbol::new(&env, ""), BytesN::new(&env, &[0u8; 32]), 0, 0);
     }
 
@@ -96,6 +104,7 @@ impl QueueFactory for QueueFactoryImpl {
             active: true,
         };
         env.storage().persistent().set(&registry_key, &metadata);
+        env.storage().persistent().extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         Self::append_slug(&env, &slug);
         emit(&env, Symbol::new(&env, "Deployed"), slug, contract_id.clone(), version, deployed_at);
         contract_id
@@ -118,6 +127,7 @@ impl QueueFactory for QueueFactoryImpl {
             active: true,
         };
         env.storage().persistent().set(&registry_key, &metadata);
+        env.storage().persistent().extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         Self::append_slug(&env, &slug);
         emit(&env, Symbol::new(&env, "Registered"), slug, contract_id, version, deployed_at);
     }
@@ -128,6 +138,7 @@ impl QueueFactory for QueueFactoryImpl {
         metadata.active = false;
         let registry_key = Self::queue_registry_key(&env, &slug);
         env.storage().persistent().set(&registry_key, &metadata);
+        env.storage().persistent().extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "Deactivated"),
@@ -144,6 +155,7 @@ impl QueueFactory for QueueFactoryImpl {
         metadata.active = true;
         let registry_key = Self::queue_registry_key(&env, &slug);
         env.storage().persistent().set(&registry_key, &metadata);
+        env.storage().persistent().extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "Reactivated"),
@@ -161,6 +173,7 @@ impl QueueFactory for QueueFactoryImpl {
         config.min_version = min_version;
         config.max_version = max_version;
         env.storage().persistent().set(&config_key, &config);
+        env.storage().persistent().extend_ttl(&config_key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     fn get_queue(env: Env, slug: Symbol) -> Option<QueueMetadata> {
@@ -199,6 +212,7 @@ impl QueueFactory for QueueFactoryImpl {
         metadata.version = new_version;
         let registry_key = Self::queue_registry_key(&env, &slug);
         env.storage().persistent().set(&registry_key, &metadata);
+        env.storage().persistent().extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         env.deployer().with_current_contract(&new_wasm_hash).upgrade(&contract_id);
         emit(&env, Symbol::new(&env, "Upgraded"), slug, contract_id, new_version, env.ledger().timestamp());
     }
@@ -211,10 +225,12 @@ impl QueueFactoryImpl {
 
     pub(crate) fn get_queue_meta(env: &Env, slug: &Symbol) -> QueueMetadata {
         let key = Self::queue_registry_key(env, slug);
-        env.storage()
+        let metadata = env.storage()
             .persistent()
             .get(&key)
-            .unwrap_or_else(|| panic!("queue not found"))
+            .unwrap_or_else(|| panic!("queue not found"));
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        metadata
     }
 
     fn append_slug(env: &Env, slug: &Symbol) {
@@ -222,6 +238,7 @@ impl QueueFactoryImpl {
         let mut slugs: Vec<Symbol> = env.storage().persistent().get(&idx_key).unwrap_or(Vec::new(env));
         slugs.push_back(slug.clone());
         env.storage().persistent().set(&idx_key, &slugs);
+        env.storage().persistent().extend_ttl(&idx_key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 }
 

@@ -90,6 +90,26 @@ Every fairness-relevant transition should emit a structured event:
 
 Auditors should be able to rebuild queue history from contract storage and events.
 
+## Storage TTL Management
+
+All contracts implement automatic TTL (time-to-live) extension for persistent storage entries to prevent silent data loss on Soroban. This is critical because:
+
+- Persistent storage entries are archived when their TTL expires
+- Without extension, queue positions, enrollment records, escrow data, and identity bindings would disappear
+- This would undermine auditability and cause silent protocol failures
+
+The implementation uses a defense-in-depth strategy:
+
+1. **Write path**: `extend_ttl()` is called after every `storage().persistent().set()`
+2. **Read path**: `extend_ttl()` is called after `storage().persistent().get()` (touch-on-read pattern)
+3. **Contract instance**: `initialize()` functions extend the contract instance TTL
+
+TTL constants:
+- `TTL_THRESHOLD = 10_000` (~13.8 hours at 5s/ledger) - renew if TTL below this
+- `TTL_EXTEND_TO = 6_307_200` (~1 year at 5s/ledger) - target TTL when renewing
+
+See [docs/contract-storage-ttl.md](docs/contract-storage-ttl.md) for detailed documentation.
+
 ## Security Boundaries
 
 - Contract authorization gates privileged operations.

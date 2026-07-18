@@ -1,5 +1,10 @@
 use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, Symbol};
 
+/// TTL threshold: renew if remaining TTL is below this many ledgers (~13.8 hours at 5s/ledger)
+const TTL_THRESHOLD: u32 = 10_000;
+/// TTL extension target: extend to this many ledgers (~1 year at 5s/ledger)
+const TTL_EXTEND_TO: u32 = 6_307_200;
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EnrollmentProof {
@@ -71,6 +76,7 @@ impl Enrollment for EnrollmentImpl {
         };
         let key = Self::record_key(&env, &caller, &queue_id);
         env.storage().persistent().set(&key, &record);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "Enrolled"),
@@ -122,6 +128,7 @@ impl Enrollment for EnrollmentImpl {
         env.storage()
             .persistent()
             .set(&Symbol::new(&env, "dup_behavior"), &behavior);
+        env.storage().persistent().extend_ttl(&Symbol::new(&env, "dup_behavior"), TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     fn finalize_enrollment(env: Env, admin: Address, identity: Address, queue_id: Symbol) {
@@ -133,6 +140,7 @@ impl Enrollment for EnrollmentImpl {
         record.finalized = true;
         let key = Self::record_key(&env, &identity, &queue_id);
         env.storage().persistent().set(&key, &record);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "Finalized"), queue_id, &identity, record.enrolled_at, record.proof_hash);
     }
 
@@ -150,10 +158,12 @@ impl EnrollmentImpl {
 
     fn load_record(env: &Env, identity: &Address, queue_id: &Symbol) -> EnrollmentRecord {
         let key = Self::record_key(env, identity, queue_id);
-        env.storage()
+        let record = env.storage()
             .persistent()
             .get(&key)
-            .unwrap_or_else(|| panic!("record missing"))
+            .unwrap_or_else(|| panic!("record missing"));
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        record
     }
 
     fn record_key(env: &Env, identity: &Address, queue_id: &Symbol) -> (Symbol, Symbol, Address) {

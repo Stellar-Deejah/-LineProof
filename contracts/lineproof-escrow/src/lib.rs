@@ -1,5 +1,12 @@
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol};
 
+/// TTL threshold: renew if remaining TTL is below this many ledgers (~13.8 hours at 5s/ledger)
+const TTL_THRESHOLD: u32 = 10_000;
+/// TTL extension target: extend to this many ledgers (~1 year at 5s/ledger)
+const TTL_EXTEND_TO: u32 = 6_307_200;
+/// Additional TTL buffer for escrow records beyond hold_period_days (in ledgers)
+const ESCROW_TTL_BUFFER: u32 = 86_400; // ~5 days at 5s/ledger
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EscrowStatus {
@@ -80,11 +87,13 @@ impl Escrow for EscrowImpl {
             released_at: None,
         };
         env.storage().persistent().set(&key, &record);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
 
         // Update running total for the queue
         let total_key = Self::total_key(&env, &queue_id);
         let current: i128 = env.storage().persistent().get(&total_key).unwrap_or(0);
         env.storage().persistent().set(&total_key, &(current + amount));
+        env.storage().persistent().extend_ttl(&total_key, TTL_THRESHOLD, TTL_EXTEND_TO);
 
         emit(&env, Symbol::new(&env, "Deposited"), queue_id, &caller, amount);
     }
@@ -99,6 +108,7 @@ impl Escrow for EscrowImpl {
         record.released_at = Some(env.ledger().timestamp());
         let key = Self::record_key(&env, &identity, &queue_id);
         env.storage().persistent().set(&key, &record);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "Released"), queue_id, &identity, record.amount);
     }
 
@@ -112,6 +122,7 @@ impl Escrow for EscrowImpl {
         record.released_at = Some(env.ledger().timestamp());
         let key = Self::record_key(&env, &identity, &queue_id);
         env.storage().persistent().set(&key, &record);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "Refunded"), queue_id, &identity, record.amount);
     }
 
@@ -127,6 +138,7 @@ impl Escrow for EscrowImpl {
         record.released_at = Some(env.ledger().timestamp());
         let key = Self::record_key(&env, &identity, &queue_id);
         env.storage().persistent().set(&key, &record);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "Expired"), queue_id, &identity, record.amount);
     }
 
@@ -157,6 +169,7 @@ impl Escrow for EscrowImpl {
         admin.require_auth();
         let key = Self::config_key(&env, &config.queue_id);
         env.storage().persistent().set(&key, &config);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     fn get_total_held(env: Env, queue_id: Symbol) -> i128 {
@@ -168,10 +181,12 @@ impl Escrow for EscrowImpl {
 impl EscrowImpl {
     fn load_record(env: &Env, identity: &Address, queue_id: &Symbol) -> EscrowRecord {
         let key = Self::record_key(env, identity, queue_id);
-        env.storage()
+        let record = env.storage()
             .persistent()
             .get(&key)
-            .unwrap_or_else(|| panic!("escrow record not found"))
+            .unwrap_or_else(|| panic!("escrow record not found"));
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        record
     }
 
     fn record_key(env: &Env, identity: &Address, queue_id: &Symbol) -> (Symbol, Symbol, Address) {

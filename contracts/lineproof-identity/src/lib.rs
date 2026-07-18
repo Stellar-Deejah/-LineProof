@@ -1,5 +1,10 @@
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Vec};
 
+/// TTL threshold: renew if remaining TTL is below this many ledgers (~13.8 hours at 5s/ledger)
+const TTL_THRESHOLD: u32 = 10_000;
+/// TTL extension target: extend to this many ledgers (~1 year at 5s/ledger)
+const TTL_EXTEND_TO: u32 = 6_307_200;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[contracttype]
 pub enum BindingStatus {
@@ -56,6 +61,7 @@ impl Identity for IdentityImpl {
         record.status = BindingStatus::Bound;
         let key = Self::record_key(&env, &identity);
         env.storage().persistent().set(&key, &record);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "Bound"), queue_id, &identity, env.ledger().timestamp());
     }
 
@@ -71,6 +77,7 @@ impl Identity for IdentityImpl {
         record.queues = updated;
         let key = Self::record_key(&env, &identity);
         env.storage().persistent().set(&key, &record);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "Unbound"), queue_id, &identity, env.ledger().timestamp());
     }
 
@@ -95,6 +102,7 @@ impl Identity for IdentityImpl {
         };
         let key = Self::attempt_key(&env, &from, &to, &queue_id);
         env.storage().persistent().set(&key, &attempt);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "TransferReverted"), queue_id, &from, env.ledger().timestamp());
     }
 
@@ -114,6 +122,8 @@ impl Identity for IdentityImpl {
             panic!("already initialized");
         }
         env.storage().persistent().set(&key, &admin);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage().persistent().extend_ttl(&env.current_contract_address(), TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     fn get_admin(env: Env) -> Option<Address> {
@@ -134,6 +144,7 @@ impl Identity for IdentityImpl {
         record.status = BindingStatus::Revoked;
         let key = Self::record_key(&env, &identity);
         env.storage().persistent().set(&key, &record);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "Revoked"), Symbol::new(&env, ""), &identity, env.ledger().timestamp());
     }
 }
@@ -141,7 +152,7 @@ impl Identity for IdentityImpl {
 impl IdentityImpl {
     fn get_record_internal(env: &Env, identity: &Address) -> IdentityRecord {
         let key = Self::record_key(env, identity);
-        env.storage()
+        let record = env.storage()
             .persistent()
             .get(&key)
             .unwrap_or(IdentityRecord {
@@ -149,7 +160,9 @@ impl IdentityImpl {
                 bound_at: 0,
                 queues: Vec::new(env),
                 status: BindingStatus::Unbound,
-            })
+            });
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        record
     }
 
     pub fn record_key(env: &Env, identity: &Address) -> (Symbol, Address) {
