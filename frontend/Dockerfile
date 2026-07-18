@@ -8,7 +8,7 @@ COPY pnpm-workspace.yaml package.json ./
 COPY sdk/package.json ./sdk/
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
-RUN pnpm install --no-frozen-lockfile --filter @lineproof/frontend...
+RUN pnpm install --frozen-lockfile --filter @lineproof/frontend...
 
 FROM deps AS build
 ARG VITE_API_BASE_URL=http://localhost:4000/api
