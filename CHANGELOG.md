@@ -12,7 +12,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - [contracts/escrow] `get_total_held` function tracking running deposit totals per queue
 - [contracts/escrow] `Expired` status now correctly persisted in `expire()` and guarded against non-Active records
 - [contracts/queue] `enroll_position` with capacity enforcement, `cancel_position`, and `total_enrolled`
-- [contracts/queue] `advance()` precondition: requires `EnrollmentClosed` status; stays in `AdvancementActive` after batch
+- [contracts/queue] `advaAnce()` precondition: requires `EnrollmentClosed` status; stays in `AdvancementActive` after batch
 - [contracts/identity] `initialize`, `revoke`, and `get_admin` functions
 - [contracts/identity] `bound_at` timestamp and `Bound` status set correctly on first bind
 - [contracts/enrollment] `finalize_enrollment`, `enrollment_count`, and `count_key` helper
@@ -51,6 +51,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - [docs] `vrf-advancement.md`, `contract-storage-ttl.md` (stub), `backend-persistence.md`; refreshed `sdk-architecture.md` and `observability.md` (#35, #31, #4)
 
 ### Fixed
+- [sdk] **BREAKING**: Fixed critical bug where `Keypair.fromSecret()` was called with public key strings instead of secret keys across all transaction clients (`EnrollmentClient`, `EscrowClient`, `QueueClient`, `IdentityClient`). This caused TypeErrors at runtime and prevented all on-chain interactions. Replaced with `requireKeypair()` helper that validates credentials before transaction building.
+- [sdk] **BREAKING**: Fixed read-only contract queries (`getPosition`, `isEnrolled`, `isBound`) that were incorrectly using `Horizon.Server` instead of `SorobanRpc.Server`. Added `sorobanServer` instance to `LineProofClient` and implemented proper Soroban RPC simulation with XDR encoding/decoding for view calls.
+- [sdk] Added `LineProofClient.readOnly()` factory method for creating read-only client instances that explicitly disable mutation methods at construction time, providing clearer error messages when credentials are missing.
+- [sdk] Removed all `NOT_IMPLEMENTED` errors from SDK - view methods now execute real Soroban contract simulations.
 - [backend] Rate limiter no longer keeps an in-process `Map` — counters live in the storage adapter, so limits survive restarts and can be shared across replicas (#4)
 - [backend] `GET /health` and `GET /public/health` now return a unified shape (#31, #33)
 - [repo] Removed duplicate `packageManager`/`engines` keys in the root `package.json`

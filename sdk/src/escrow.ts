@@ -13,7 +13,7 @@ export class EscrowClient {
     if (amount <= 0) {
       throw new SDKError('INVALID_INPUT', 'deposit amount must be positive');
     }
-    const sourceKeypair = Keypair.fromSecret(this.client.getPublicKey());
+    const sourceKeypair = this.client.requireKeypair();
     const source = await this.client.server.loadAccount(sourceKeypair.publicKey());
     const tx = new TransactionBuilder(source, {
       fee: BASE_FEE,
@@ -27,7 +27,7 @@ export class EscrowClient {
   }
 
   async release(escrowContractId: string, _identity: string): Promise<string> {
-    const sourceKeypair = Keypair.fromSecret(this.client.getPublicKey());
+    const sourceKeypair = this.client.requireKeypair();
     const source = await this.client.server.loadAccount(sourceKeypair.publicKey());
     const tx = new TransactionBuilder(source, {
       fee: BASE_FEE,
@@ -41,7 +41,7 @@ export class EscrowClient {
   }
 
   async refund(escrowContractId: string, _identity: string): Promise<string> {
-    const sourceKeypair = Keypair.fromSecret(this.client.getPublicKey());
+    const sourceKeypair = this.client.requireKeypair();
     const source = await this.client.server.loadAccount(sourceKeypair.publicKey());
     const tx = new TransactionBuilder(source, {
       fee: BASE_FEE,

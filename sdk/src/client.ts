@@ -2,11 +2,13 @@ import {
   Networks,
   Keypair,
   Horizon,
+  SorobanRpc,
 } from '@stellar/stellar-sdk';
 import { LineProofConfig, DEFAULT_LINEPROOF_CONFIG, SDKError, isNetworkPassphrase } from './types.js';
 
 export class LineProofClient {
   readonly server: Horizon.Server;
+  readonly sorobanServer: SorobanRpc.Server;
   readonly networkPassphrase: string;
   private readonly sourceSecret?: string;
   private readonly sourcePublic?: string;
@@ -31,14 +33,24 @@ export class LineProofClient {
       this.sourcePublic = resolved.publicKey?.trim();
     }
 
+    // Horizon.Server for classic Stellar operations (strips /rpc path)
     this.server = new Horizon.Server(resolved.rpcServerUrl.replace(/\/rpc.*/, ''));
+    // SorobanRpc.Server for Soroban contract operations (preserves /rpc path)
+    this.sorobanServer = new SorobanRpc.Server(resolved.rpcServerUrl);
+  }
+
+  requireKeypair(): Keypair {
+    if (!this.sourceSecret) {
+      throw new SDKError(
+        'MISSING_CREDENTIALS',
+        'privateKey is required for this operation. Use LineProofClient.readOnly() for read-only access or provide a privateKey in the config.',
+      );
+    }
+    return Keypair.fromSecret(this.sourceSecret);
   }
 
   async deployFactory(): Promise<string> {
-    if (!this.sourceSecret) {
-      throw new SDKError('MISSING_CREDENTIALS', 'privateKey is required to deploy');
-    }
-    const keypair = Keypair.fromSecret(this.sourceSecret);
+    const keypair = this.requireKeypair();
     await this.server.loadAccount(keypair.publicKey());
     const contractId = 'C' + Keypair.random().publicKey().slice(1);
     this.factoryContractId = contractId;
@@ -64,5 +76,12 @@ export class LineProofClient {
       );
     }
     return this.factoryContractId;
+  }
+
+  static readOnly(config: Omit<LineProofConfig, 'privateKey'>): LineProofClient {
+    return new LineProofClient({
+      ...config,
+      privateKey: undefined,
+    });
   }
 }

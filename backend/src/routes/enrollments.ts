@@ -2,20 +2,22 @@ import { Router, type IRouter, Response } from 'express';
 import { z } from 'zod';
 import { enrollIdentity, cancelEnrollment, getEnrollmentsByIdentity, getEnrollmentsByQueue } from '../services/enrollmentService.js';
 import { recordEnrollment } from '../metrics/registry.js';
+import { validateStellarAddress } from '../middleware/validateStellarAddress.js';
+import { StellarAddress } from '../schemas/stellar.js';
 
 const router: IRouter = Router();
 
 const EnrollSchema = z.object({
   queueId: z.string().min(1),
-  identity: z.string().min(1),
+  identity: StellarAddress,
 });
 
 const CancelSchema = z.object({
   queueId: z.string().min(1),
-  identity: z.string().min(1),
+  identity: StellarAddress,
 });
 
-router.post('/enroll', (req: any, res: Response, next) => {
+router.post('/enroll', validateStellarAddress(['identity']), (req: any, res: Response, next) => {
   const parsed = EnrollSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
 
@@ -29,7 +31,7 @@ router.post('/enroll', (req: any, res: Response, next) => {
   }
 });
 
-router.post('/cancel', (req: any, res: Response, next) => {
+router.post('/cancel', validateStellarAddress(['identity']), (req: any, res: Response, next) => {
   const parsed = CancelSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
 

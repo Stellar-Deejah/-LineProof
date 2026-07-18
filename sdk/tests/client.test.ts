@@ -16,11 +16,6 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
     },
     Keypair: {
       ...actual.Keypair,
-      fromSecret: vi.fn(() => ({
-        publicKey: () => 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
-        secret: () => 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-        sign: vi.fn(),
-      })),
       random: vi.fn(() => ({
         publicKey: () => 'GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBWHF',
         secret: () => 'SBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
@@ -32,6 +27,26 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
       STANDALONE: 'Standalone Network ; February 2017',
     },
     BASE_FEE: '100',
+    SorobanRpc: {
+      Server: vi.fn(() => ({
+        simulateTransaction: vi.fn(async () => ({
+          result: 'AAAAAQ==', // base64 encoded XDR for a boolean true
+        })),
+      })),
+    },
+    xdr: {
+      ScVal: {
+        fromXDR: vi.fn(() => ({
+          switch: () => ({ name: 'Bool' }),
+          b: () => true,
+        })),
+        scvString: vi.fn((val: string) => ({ _value: val })),
+        scvU64: vi.fn((val: number) => ({ _value: val })),
+      },
+    },
+    SorobanDataBuilder: vi.fn(() => ({
+      build: vi.fn(() => ({ _unused: true })),
+    })),
   };
 });
 
@@ -82,5 +97,39 @@ describe('LineProofClient.resolveFactory', () => {
       networkPassphrase: NetworkPassphrase.TESTNET,
     });
     expect(() => client.resolveFactory()).toThrow(SDKError);
+  });
+});
+
+describe('LineProofClient.requireKeypair', () => {
+  it('throws MISSING_CREDENTIALS when privateKey is not set', () => {
+    const client = new LineProofClient({
+      rpcServerUrl: 'http://localhost:8000',
+      networkPassphrase: NetworkPassphrase.TESTNET,
+    });
+    expect(() => client.requireKeypair()).toThrow(SDKError);
+    expect(() => client.requireKeypair()).toThrow('MISSING_CREDENTIALS');
+  });
+
+  it('returns Keypair when privateKey is set', () => {
+    const client = new LineProofClient({
+      rpcServerUrl: 'http://localhost:8000',
+      networkPassphrase: NetworkPassphrase.TESTNET,
+      privateKey: 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    });
+    const keypair = client.requireKeypair();
+    expect(keypair).toBeDefined();
+    expect(keypair.publicKey()).toBe('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF');
+  });
+});
+
+describe('LineProofClient.readOnly', () => {
+  it('creates a read-only client without privateKey', () => {
+    const client = LineProofClient.readOnly({
+      rpcServerUrl: 'http://localhost:8000',
+      networkPassphrase: NetworkPassphrase.TESTNET,
+      publicKey: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+    });
+    expect(client.getNetworkPassphrase()).toBe(NetworkPassphrase.TESTNET);
+    expect(() => client.requireKeypair()).toThrow('MISSING_CREDENTIALS');
   });
 });
