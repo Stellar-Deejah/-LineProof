@@ -44,14 +44,20 @@ export default function QueuesPage() {
               <Link
                 key={queue.id}
                 to={`/queues/${queue.id}`}
+                aria-label={queue.name}
                 className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-base font-semibold text-slate-900">{queue.name}</h3>
-                  <QueueStatusBadge status={queue.status as any} />
+                  <h2 className="text-base font-semibold text-slate-900">{queue.name}</h2>
+                  <QueueStatusBadge status={queue.status} />
                 </div>
                 <p className="mt-1 text-sm text-slate-500 line-clamp-2">{queue.description}</p>
-                <ProgressBar value={pct} label={`${queue.enrolled} / ${queue.maxPositions} enrolled`} className="mt-4" />
+                <ProgressBar
+                  value={pct}
+                  label={`${queue.enrolled} / ${queue.maxPositions} enrolled`}
+                  className="mt-4"
+                  ariaHidden
+                />
                 <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
                   <span>{queue.advancementRule}</span>
                   <span className="inline-flex items-center gap-1 font-medium text-slate-700">

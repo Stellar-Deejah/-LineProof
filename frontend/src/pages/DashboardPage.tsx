@@ -3,6 +3,7 @@ import { ShieldCheck } from 'lucide-react';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import CopyButton from '../components/CopyButton';
+import LiveRegion from '../components/LiveRegion';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
 
@@ -67,9 +68,12 @@ export default function DashboardPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <label className="block text-sm font-medium text-slate-900">Stellar public key</label>
+        <label htmlFor="dashboard-public-key" className="block text-sm font-medium text-slate-900">
+          Stellar public key
+        </label>
         <div className="mt-2 flex gap-2">
           <input
+            id="dashboard-public-key"
             value={publicKey}
             onChange={(e) => setPublicKey(e.currentTarget.value)}
             onKeyDown={(e) => e.key === 'Enter' && lookup()}
@@ -85,7 +89,11 @@ export default function DashboardPage() {
             {loading ? <Spinner size="sm" className="mx-2" /> : 'Lookup'}
           </button>
         </div>
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {error && (
+          <LiveRegion className="mt-2 text-sm text-red-600">
+            {error}
+          </LiveRegion>
+        )}
       </div>
 
       {searched && !loading && (
