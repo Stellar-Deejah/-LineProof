@@ -5,6 +5,7 @@ import QueueStatusBadge from '../components/QueueStatusBadge';
 import ProgressBar from '../components/ProgressBar';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
+import AlertBanner from '../components/AlertBanner';
 
 export default function QueuesPage() {
   const { queues, loading, error } = useQueues();
@@ -18,11 +19,7 @@ export default function QueuesPage() {
   }
 
   if (error) {
-    return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        Failed to load queues: {error}
-      </div>
-    );
+    return <AlertBanner variant="error" message={`Failed to load queues: ${error}`} />;
   }
 
   return (

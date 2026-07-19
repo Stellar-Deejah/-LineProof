@@ -3,6 +3,7 @@ import { ShieldCheck } from 'lucide-react';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import CopyButton from '../components/CopyButton';
+import AlertBanner from '../components/AlertBanner';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
 
@@ -68,7 +69,11 @@ export default function DashboardPage() {
             {loading ? <Spinner size="sm" className="mx-2" /> : 'Lookup'}
           </button>
         </div>
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {error && (
+          <div className="mt-4">
+            <AlertBanner variant="error" message={error} />
+          </div>
+        )}
       </div>
 
       {searched && !loading && (
