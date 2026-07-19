@@ -34,7 +34,11 @@ fn test_enroll_rejects_duplicate_by_default() {
 fn test_is_enrolled_returns_correct_state() {
     let (env, caller) = setup();
     let queue_id = Symbol::new(&env, "visa");
-    assert!(!EnrollmentImpl::is_enrolled(env.clone(), caller.clone(), queue_id.clone()));
+    assert!(!EnrollmentImpl::is_enrolled(
+        env.clone(),
+        caller.clone(),
+        queue_id.clone()
+    ));
     EnrollmentImpl::enroll(env.clone(), caller.clone(), queue_id.clone());
     assert!(EnrollmentImpl::is_enrolled(env, caller, queue_id));
 }

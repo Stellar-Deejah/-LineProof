@@ -80,13 +80,21 @@ impl Queue for QueueImpl {
         admin.require_auth();
         let key_config = Symbol::new(&env, "config");
         env.storage().persistent().set(&key_config, &config);
-        env.storage().persistent().extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
         env.storage().persistent().set(&Symbol::new(&env, "next_id"), &1u32);
-        env.storage().persistent().extend_ttl(&Symbol::new(&env, "next_id"), TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&Symbol::new(&env, "next_id"), TTL_THRESHOLD, TTL_EXTEND_TO);
         let key_idx = Symbol::new(&env, "idx");
         env.storage().persistent().set(&key_idx, &0u32);
-        env.storage().persistent().extend_ttl(&key_idx, TTL_THRESHOLD, TTL_EXTEND_TO);
-        env.storage().persistent().extend_ttl(&env.current_contract_address(), TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key_idx, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&env.current_contract_address(), TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "Initialized"), 0, &admin, 0);
     }
 
@@ -99,7 +107,9 @@ impl Queue for QueueImpl {
         config.status = QueueStatus::EnrollmentOpen;
         let key_config = Symbol::new(&env, "config");
         env.storage().persistent().set(&key_config, &config);
-        env.storage().persistent().extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "EnrollmentOpened"),
@@ -115,7 +125,9 @@ impl Queue for QueueImpl {
         config.status = QueueStatus::EnrollmentClosed;
         let key_config = Symbol::new(&env, "config");
         env.storage().persistent().set(&key_config, &config);
-        env.storage().persistent().extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "EnrollmentClosed"),
@@ -146,9 +158,13 @@ impl Queue for QueueImpl {
         };
         let key_pos = Self::position_key(&env, next_id);
         env.storage().persistent().set(&key_pos, &pos);
-        env.storage().persistent().extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
         env.storage().persistent().set(&next_id_key, &(next_id + 1));
-        env.storage().persistent().extend_ttl(&next_id_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&next_id_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "Enrolled"),
@@ -171,7 +187,9 @@ impl Queue for QueueImpl {
         pos.status = PositionStatus::Cancelled;
         let key_pos = Self::position_key(&env, position_id);
         env.storage().persistent().set(&key_pos, &pos);
-        env.storage().persistent().extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "Cancelled"),
@@ -190,7 +208,9 @@ impl Queue for QueueImpl {
         config.status = QueueStatus::AdvancementActive;
         let key_config = Symbol::new(&env, "config");
         env.storage().persistent().set(&key_config, &config);
-        env.storage().persistent().extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
 
         match config.advancement_rule {
             AdvancementRule::Fifo => {
@@ -208,7 +228,9 @@ impl Queue for QueueImpl {
                             pos.advanced_at = Some(env.ledger().timestamp());
                             let key_pos = Self::position_key(&env, id);
                             env.storage().persistent().set(&key_pos, &pos);
-                            env.storage().persistent().extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
+                            env.storage()
+                                .persistent()
+                                .extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
                             advanced.push_back(id);
                         }
                         idx += 1;
@@ -217,7 +239,9 @@ impl Queue for QueueImpl {
                     }
                 }
                 env.storage().persistent().set(&Symbol::new(&env, "idx"), &idx);
-                env.storage().persistent().extend_ttl(&Symbol::new(&env, "idx"), TTL_THRESHOLD, TTL_EXTEND_TO);
+                env.storage()
+                    .persistent()
+                    .extend_ttl(&Symbol::new(&env, "idx"), TTL_THRESHOLD, TTL_EXTEND_TO);
                 // Remain in AdvancementActive so callers can issue further advance() batches
                 for id in advanced.iter() {
                     emit(
@@ -273,7 +297,9 @@ impl Queue for QueueImpl {
         config.status = QueueStatus::Closed;
         let key_config = Symbol::new(&env, "config");
         env.storage().persistent().set(&key_config, &config);
-        env.storage().persistent().extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "QueueClosed"),
@@ -287,21 +313,27 @@ impl Queue for QueueImpl {
 impl QueueImpl {
     fn get_config_internal(env: &Env) -> QueueConfig {
         let key = Symbol::new(env, "config");
-        let config = env.storage()
+        let config = env
+            .storage()
             .persistent()
             .get(&key)
             .unwrap_or_else(|| panic!("queue not initialized"));
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         config
     }
 
     fn load_position(env: &Env, id: u32) -> Position {
         let key = Self::position_key(env, id);
-        let pos = env.storage()
+        let pos = env
+            .storage()
             .persistent()
             .get(&key)
             .unwrap_or_else(|| panic!("position not found"));
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         pos
     }
 

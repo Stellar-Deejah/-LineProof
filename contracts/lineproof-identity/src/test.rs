@@ -1,5 +1,5 @@
-use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
 use crate::{BindingStatus, IdentityImpl};
+use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
 
 fn setup() -> (Env, Address) {
     let env = Env::default();

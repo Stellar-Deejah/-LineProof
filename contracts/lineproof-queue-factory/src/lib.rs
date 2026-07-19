@@ -62,16 +62,33 @@ impl QueueFactory for QueueFactoryImpl {
         if env.storage().persistent().has(&key) {
             panic!("already initialized");
         }
-        let config = FactoryConfig { admin, min_version: 1, max_version: 1 };
+        let config = FactoryConfig {
+            admin,
+            min_version: 1,
+            max_version: 1,
+        };
         env.storage().persistent().set(&key, &config);
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         // Initialize empty slug index
         let idx_key = Symbol::new(&env, SLUG_INDEX_KEY);
         let empty: Vec<Symbol> = Vec::new(&env);
         env.storage().persistent().set(&idx_key, &empty);
-        env.storage().persistent().extend_ttl(&idx_key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        env.storage().persistent().extend_ttl(&env.current_contract_address(), TTL_THRESHOLD, TTL_EXTEND_TO);
-        emit(&env, Symbol::new(&env, "Init"), Symbol::new(&env, ""), BytesN::new(&env, &[0u8; 32]), 0, 0);
+        env.storage()
+            .persistent()
+            .extend_ttl(&idx_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&env.current_contract_address(), TTL_THRESHOLD, TTL_EXTEND_TO);
+        emit(
+            &env,
+            Symbol::new(&env, "Init"),
+            Symbol::new(&env, ""),
+            BytesN::new(&env, &[0u8; 32]),
+            0,
+            0,
+        );
     }
 
     fn deploy_queue(
@@ -104,9 +121,18 @@ impl QueueFactory for QueueFactoryImpl {
             active: true,
         };
         env.storage().persistent().set(&registry_key, &metadata);
-        env.storage().persistent().extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         Self::append_slug(&env, &slug);
-        emit(&env, Symbol::new(&env, "Deployed"), slug, contract_id.clone(), version, deployed_at);
+        emit(
+            &env,
+            Symbol::new(&env, "Deployed"),
+            slug,
+            contract_id.clone(),
+            version,
+            deployed_at,
+        );
         contract_id
     }
 
@@ -127,9 +153,18 @@ impl QueueFactory for QueueFactoryImpl {
             active: true,
         };
         env.storage().persistent().set(&registry_key, &metadata);
-        env.storage().persistent().extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         Self::append_slug(&env, &slug);
-        emit(&env, Symbol::new(&env, "Registered"), slug, contract_id, version, deployed_at);
+        emit(
+            &env,
+            Symbol::new(&env, "Registered"),
+            slug,
+            contract_id,
+            version,
+            deployed_at,
+        );
     }
 
     fn deactivate_queue(env: Env, admin: Address, slug: Symbol) {
@@ -138,7 +173,9 @@ impl QueueFactory for QueueFactoryImpl {
         metadata.active = false;
         let registry_key = Self::queue_registry_key(&env, &slug);
         env.storage().persistent().set(&registry_key, &metadata);
-        env.storage().persistent().extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "Deactivated"),
@@ -155,7 +192,9 @@ impl QueueFactory for QueueFactoryImpl {
         metadata.active = true;
         let registry_key = Self::queue_registry_key(&env, &slug);
         env.storage().persistent().set(&registry_key, &metadata);
-        env.storage().persistent().extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "Reactivated"),
@@ -173,7 +212,9 @@ impl QueueFactory for QueueFactoryImpl {
         config.min_version = min_version;
         config.max_version = max_version;
         env.storage().persistent().set(&config_key, &config);
-        env.storage().persistent().extend_ttl(&config_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&config_key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     fn get_queue(env: Env, slug: Symbol) -> Option<QueueMetadata> {
@@ -212,9 +253,20 @@ impl QueueFactory for QueueFactoryImpl {
         metadata.version = new_version;
         let registry_key = Self::queue_registry_key(&env, &slug);
         env.storage().persistent().set(&registry_key, &metadata);
-        env.storage().persistent().extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        env.deployer().with_current_contract(&new_wasm_hash).upgrade(&contract_id);
-        emit(&env, Symbol::new(&env, "Upgraded"), slug, contract_id, new_version, env.ledger().timestamp());
+        env.storage()
+            .persistent()
+            .extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.deployer()
+            .with_current_contract(&new_wasm_hash)
+            .upgrade(&contract_id);
+        emit(
+            &env,
+            Symbol::new(&env, "Upgraded"),
+            slug,
+            contract_id,
+            new_version,
+            env.ledger().timestamp(),
+        );
     }
 }
 
@@ -225,11 +277,14 @@ impl QueueFactoryImpl {
 
     pub(crate) fn get_queue_meta(env: &Env, slug: &Symbol) -> QueueMetadata {
         let key = Self::queue_registry_key(env, slug);
-        let metadata = env.storage()
+        let metadata = env
+            .storage()
             .persistent()
             .get(&key)
             .unwrap_or_else(|| panic!("queue not found"));
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         metadata
     }
 
@@ -238,17 +293,15 @@ impl QueueFactoryImpl {
         let mut slugs: Vec<Symbol> = env.storage().persistent().get(&idx_key).unwrap_or(Vec::new(env));
         slugs.push_back(slug.clone());
         env.storage().persistent().set(&idx_key, &slugs);
-        env.storage().persistent().extend_ttl(&idx_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&idx_key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 }
 
 fn emit(env: &Env, kind: Symbol, slug: Symbol, _contract_id: BytesN<32>, version: u32, _timestamp: u64) {
-    env.events().publish((
-        Symbol::new(env, "lineproof.factory"),
-        kind,
-        slug,
-        version,
-    ));
+    env.events()
+        .publish((Symbol::new(env, "lineproof.factory"), kind, slug, version));
 }
 
 #[cfg(test)]

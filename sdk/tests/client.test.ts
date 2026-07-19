@@ -16,6 +16,11 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
     },
     Keypair: {
       ...actual.Keypair,
+      fromSecret: vi.fn(() => ({
+        publicKey: () => 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+        secret: () => 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        sign: vi.fn(),
+      })),
       random: vi.fn(() => ({
         publicKey: () => 'GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBWHF',
         secret: () => 'SBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
