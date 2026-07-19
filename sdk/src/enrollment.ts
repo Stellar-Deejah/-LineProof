@@ -5,9 +5,11 @@ import {
   BASE_FEE,
   xdr,
   SorobanDataBuilder,
-} from '@stellar/stellar-sdk';
-import { LineProofClient } from './client.js';
-import { SDKError } from './types.js';
+  Account,
+  SorobanRpc,
+} from "@stellar/stellar-sdk";
+import { LineProofClient } from "./client.js";
+import { SDKError } from "./types.js";
 
 export class EnrollmentClient {
   private readonly client: LineProofClient;
@@ -17,50 +19,31 @@ export class EnrollmentClient {
   }
 
   async enroll(queueId: string, _identity: string): Promise<string> {
-    const sourceKeypair = this.client.requireKeypair();
-    const source = await this.client.server.loadAccount(sourceKeypair.publicKey());
-    const tx = new TransactionBuilder(source, {
-      fee: BASE_FEE,
-      networkPassphrase: this.client.getNetworkPassphrase(),
-    })
-      .addOperation(
-        Operation.invokeContractFunction({
-          contract: queueId,
-          function: 'enroll',
-          args: [],
-        }),
-      )
-      .setTimeout(30)
-      .build();
-    tx.sign(sourceKeypair);
-    const result = await this.client.server.submitTransaction(tx);
-    return result.hash;
+    return this.client.submitSorobanOperation(
+      Operation.invokeContractFunction({
+        contract: queueId,
+        function: "enroll",
+        args: [],
+      }),
+    );
   }
 
   async cancel(queueId: string, _identity: string): Promise<string> {
-    const sourceKeypair = this.client.requireKeypair();
-    const source = await this.client.server.loadAccount(sourceKeypair.publicKey());
-    const tx = new TransactionBuilder(source, {
-      fee: BASE_FEE,
-      networkPassphrase: this.client.getNetworkPassphrase(),
-    })
-      .addOperation(
-        Operation.invokeContractFunction({
-          contract: queueId,
-          function: 'cancel',
-          args: [],
-        }),
-      )
-      .setTimeout(30)
-      .build();
-    tx.sign(sourceKeypair);
-    const result = await this.client.server.submitTransaction(tx);
-    return result.hash;
+    return this.client.submitSorobanOperation(
+      Operation.invokeContractFunction({
+        contract: queueId,
+        function: "cancel",
+        args: [],
+      }),
+    );
   }
 
   async isEnrolled(queueId: string, identity: string): Promise<boolean> {
     // Build a simulation transaction for the view call
-    const source = new SorobanDataBuilder().build();
+    const source = new Account(
+      "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      "0",
+    );
     const tx = new TransactionBuilder(source, {
       fee: BASE_FEE,
       networkPassphrase: this.client.getNetworkPassphrase(),
@@ -68,7 +51,7 @@ export class EnrollmentClient {
       .addOperation(
         Operation.invokeContractFunction({
           contract: queueId,
-          function: 'is_enrolled',
+          function: "is_enrolled",
           args: [xdr.ScVal.scvString(identity)],
         }),
       )
@@ -76,18 +59,28 @@ export class EnrollmentClient {
       .build();
 
     // Simulate the transaction using Soroban RPC
-    const simulateResult = await this.client.sorobanServer.simulateTransaction(tx);
-    
-    if (!simulateResult.result) {
-      throw new SDKError('SIMULATION_FAILED', 'Contract simulation returned no result');
+    const simulateResult =
+      await this.client.sorobanServer.simulateTransaction(tx);
+
+    if (
+      !SorobanRpc.Api.isSimulationSuccess(simulateResult) ||
+      !simulateResult.result
+    ) {
+      throw new SDKError(
+        "SIMULATION_FAILED",
+        "Contract simulation returned no result",
+      );
     }
 
     // Decode the XDR result
-    const resultXdr = xdr.ScVal.fromXDR(simulateResult.result, 'base64');
-    
+    const resultXdr = simulateResult.result.retval;
+
     // Parse the boolean result
-    if (resultXdr.switch().name !== 'Bool') {
-      throw new SDKError('INVALID_RESPONSE', 'Expected Bool response from contract');
+    if (resultXdr.switch().name !== "scvBool") {
+      throw new SDKError(
+        "INVALID_RESPONSE",
+        "Expected Bool response from contract",
+      );
     }
 
     return resultXdr.b();
