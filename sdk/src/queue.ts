@@ -1,10 +1,10 @@
 import {
   TransactionBuilder,
   Operation,
-  Keypair,
   BASE_FEE,
+  SorobanRpc,
+  nativeToScVal,
   xdr,
-  SorobanDataBuilder,
 } from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
 import { SDKError, Position } from './types.js';
@@ -28,7 +28,7 @@ export class QueueClient {
     }
 
     // Build a simulation transaction for the view call
-    const source = new SorobanDataBuilder().build();
+    const source = this.lineProof.simulationSource();
     const tx = new TransactionBuilder(source, {
       fee: BASE_FEE,
       networkPassphrase: this.lineProof.networkPassphrase,
@@ -37,7 +37,7 @@ export class QueueClient {
         Operation.invokeContractFunction({
           contract: this.queueContractId,
           function: 'get_position',
-          args: [xdr.ScVal.scvU64(positionId)],
+          args: [nativeToScVal(positionId, { type: 'u64' })],
         }),
       )
       .setTimeout(30)
@@ -45,17 +45,16 @@ export class QueueClient {
 
     // Simulate the transaction using Soroban RPC
     const simulateResult = await this.lineProof.sorobanServer.simulateTransaction(tx);
-    
-    if (!simulateResult.result) {
+
+    if (!SorobanRpc.Api.isSimulationSuccess(simulateResult) || !simulateResult.result) {
       throw new SDKError('SIMULATION_FAILED', 'Contract simulation returned no result');
     }
 
-    // Decode the XDR result
-    const resultXdr = xdr.ScVal.fromXDR(simulateResult.result, 'base64');
-    
+    const resultXdr = simulateResult.result.retval;
+
     // Parse the Position struct from the XDR result
     // Assuming the contract returns a Position struct with fields: position_id, enrolled_at, identity, status
-    if (resultXdr.switch().name !== 'Vec') {
+    if (resultXdr.switch() !== xdr.ScValType.scvVec()) {
       throw new SDKError('INVALID_RESPONSE', 'Expected Vec response from contract');
     }
 
@@ -75,7 +74,7 @@ export class QueueClient {
     return position;
   }
 
-  async advance(batchSize: number): Promise<number[]> {
+  async advance(_batchSize: number): Promise<number[]> {
     const sourceKeypair = this.lineProof.requireKeypair();
     const source = await this.lineProof.server.loadAccount(sourceKeypair.publicKey());
     const tx = new TransactionBuilder(source, {

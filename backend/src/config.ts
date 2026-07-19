@@ -7,17 +7,17 @@
 
 /** Contract IDs the backend can read on-chain state from. */
 export interface ContractIds {
-  factory?: string;
-  queue?: string;
-  enrollment?: string;
-  identity?: string;
-  escrow?: string;
+  factory?: string | undefined;
+  queue?: string | undefined;
+  enrollment?: string | undefined;
+  identity?: string | undefined;
+  escrow?: string | undefined;
 }
 
 export interface BackendConfig {
   nodeEnv: string;
   port: number;
-  databaseUrl?: string;
+  databaseUrl?: string | undefined;
   sorobanRpcUrl: string;
   stellarNetwork: string;
   contractIds: ContractIds;

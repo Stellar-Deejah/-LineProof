@@ -26,7 +26,7 @@ export const depositEscrow = (payload: {
   identity: string;
   amount: number;
   asset: string;
-  holdDays?: number;
+  holdDays?: number | undefined;
 }): EscrowRecord => {
   const id = `${payload.queueId}:${payload.identity}`;
   if (store.get<EscrowRecord>(NS, id) !== undefined) {

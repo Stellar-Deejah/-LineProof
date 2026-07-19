@@ -1,10 +1,9 @@
 import {
   TransactionBuilder,
   Operation,
-  Keypair,
   BASE_FEE,
+  SorobanRpc,
   xdr,
-  SorobanDataBuilder,
 } from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
 import { SDKError } from './types.js';
@@ -35,7 +34,7 @@ export class IdentityClient {
 
   async isBound(queueId: string, identity: string): Promise<boolean> {
     // Build a simulation transaction for the view call
-    const source = new SorobanDataBuilder().build();
+    const source = this.client.simulationSource();
     const tx = new TransactionBuilder(source, {
       fee: BASE_FEE,
       networkPassphrase: this.client.getNetworkPassphrase(),
@@ -52,16 +51,15 @@ export class IdentityClient {
 
     // Simulate the transaction using Soroban RPC
     const simulateResult = await this.client.sorobanServer.simulateTransaction(tx);
-    
-    if (!simulateResult.result) {
+
+    if (!SorobanRpc.Api.isSimulationSuccess(simulateResult) || !simulateResult.result) {
       throw new SDKError('SIMULATION_FAILED', 'Contract simulation returned no result');
     }
 
-    // Decode the XDR result
-    const resultXdr = xdr.ScVal.fromXDR(simulateResult.result, 'base64');
-    
+    const resultXdr = simulateResult.result.retval;
+
     // Parse the boolean result
-    if (resultXdr.switch().name !== 'Bool') {
+    if (resultXdr.switch() !== xdr.ScValType.scvBool()) {
       throw new SDKError('INVALID_RESPONSE', 'Expected Bool response from contract');
     }
 
