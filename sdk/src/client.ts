@@ -5,6 +5,10 @@ import {
   SorobanRpc,
   TransactionBuilder,
   BASE_FEE,
+  xdr,
+  Address,
+  Account,
+  Operation,
 } from "@stellar/stellar-sdk";
 import {
   LineProofConfig,
@@ -51,7 +55,8 @@ export class LineProofClient {
       resolved.rpcServerUrl.replace(/\/rpc.*/, ""),
     );
     // SorobanRpc.Server for Soroban contract operations (preserves /rpc path)
-    this.sorobanServer = new SorobanRpc.Server(resolved.rpcServerUrl);
+    const sorobanUrl = resolved.sorobanRpcUrl || resolved.rpcServerUrl;
+    this.sorobanServer = new SorobanRpc.Server(sorobanUrl);
   }
 
   requireKeypair(): Keypair {
@@ -119,6 +124,74 @@ export class LineProofClient {
       );
     }
     return this.factoryContractId;
+  }
+
+  async simulateContractCall(
+    contractId: string,
+    functionName: string,
+    args: xdr.ScVal[] = [],
+  ): Promise<xdr.ScVal> {
+    const source = new Account(
+      "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      "0",
+    );
+    const tx = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(
+        Operation.invokeContractFunction({
+          contract: contractId,
+          function: functionName,
+          args,
+        }),
+      )
+      .setTimeout(30)
+      .build();
+
+    const simulateResult = await this.sorobanServer.simulateTransaction(tx);
+    if (!SorobanRpc.Api.isSimulationSuccess(simulateResult) || !simulateResult.result) {
+      throw new SDKError("SIMULATION_FAILED", "Contract simulation returned no result");
+    }
+    return simulateResult.result.retval;
+  }
+
+  async getContractStorageEntry(
+    contractId: string,
+    key: xdr.ScVal,
+  ): Promise<xdr.ScVal | undefined> {
+    const ledgerKey = xdr.LedgerKey.contractData(
+      new xdr.LedgerKeyContractData({
+        contract: new Address(contractId).toScAddress(),
+        key: key,
+        durability: xdr.ContractDataDurability.persistent(),
+      }),
+    );
+    const response = await this.sorobanServer.getLedgerEntries(ledgerKey);
+    if (!response.entries || response.entries.length === 0) {
+      return undefined;
+    }
+    const entryXdr = response.entries[0].xdr;
+    const ledgerEntryData = xdr.LedgerEntryData.fromXDR(entryXdr, "base64");
+    return ledgerEntryData.contractData().val();
+  }
+
+  async awaitTransaction(hash: string): Promise<xdr.ScVal> {
+    let retries = 0;
+    while (retries < 15) {
+      const response = await this.sorobanServer.getTransaction(hash);
+      if (response.status === SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
+        if (!response.returnValue) {
+          throw new SDKError("TRANSACTION_FAILED", "Transaction succeeded but no return value found");
+        }
+        return response.returnValue;
+      } else if (response.status === SorobanRpc.Api.GetTransactionStatus.FAILED) {
+        throw new SDKError("TRANSACTION_FAILED", "Transaction failed on ledger");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      retries++;
+    }
+    throw new SDKError("TIMEOUT", "Transaction confirmation timeout");
   }
 
   static readOnly(

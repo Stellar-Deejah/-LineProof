@@ -16,6 +16,21 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
         submitTransaction: vi.fn(async () => ({ hash: 'mockhash' })),
       })),
     },
+    SorobanRpc: {
+      ...actual.SorobanRpc,
+      Server: vi.fn(() => ({
+        getAccount: vi.fn(async () => ({ sequence: '1' })),
+        prepareTransaction: vi.fn(async (tx) => { (tx as any).sign = vi.fn(); return tx; }),
+        sendTransaction: vi.fn(async () => ({ status: 'SUCCESS', hash: 'mockhash' })),
+        simulateTransaction: vi.fn(async () => ({
+          result: { retval: actual.xdr.ScVal.scvBool(true) }
+        })),
+        getTransaction: vi.fn(async () => ({
+          status: actual.SorobanRpc.Api.GetTransactionStatus.SUCCESS,
+          returnValue: actual.xdr.ScVal.scvVec([actual.xdr.ScVal.scvU32(1)]),
+        })),
+      })),
+    },
     Keypair: {
       ...actual.Keypair,
       fromSecret: vi.fn(() => ({
@@ -47,10 +62,40 @@ describe('LineProofClient', () => {
 });
 
 describe('QueueClient', () => {
-  it('getPosition throws NOT_IMPLEMENTED', async () => {
+  it('getPosition parses position from simulateTransaction', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
+    const { xdr } = await import('@stellar/stellar-sdk');
+    
+    // Mock the response for getPosition
+    client.sorobanServer.simulateTransaction = vi.fn().mockResolvedValue({
+      result: {
+        retval: xdr.ScVal.scvMap([
+          new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('position_id'), val: xdr.ScVal.scvU32(5) }),
+          new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('enrolled_at'), val: xdr.ScVal.scvU64(xdr.Uint64.fromString("1234567890")) }),
+          new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('identity'), val: xdr.ScVal.scvString('G_TEST_IDENTITY') }),
+          new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('status'), val: xdr.ScVal.scvSymbol('advanced') }),
+        ])
+      }
+    } as any);
+
     const queue = new QueueClient(client, { queueContractId: 'CQUEUE123' });
-    await expect(queue.getPosition(1)).rejects.toThrow('NOT_IMPLEMENTED');
+    const pos = await queue.getPosition(5);
+    expect(pos.positionId.toString()).toBe('5');
+    expect(pos.status).toBe('advanced');
+  });
+
+  it('advance polls and parses return value', async () => {
+    const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET, privateKey: 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' });
+    const { xdr } = await import('@stellar/stellar-sdk');
+    
+    client.sorobanServer.getTransaction = vi.fn().mockResolvedValue({
+      status: 'SUCCESS',
+      returnValue: xdr.ScVal.scvVec([xdr.ScVal.scvU32(42), xdr.ScVal.scvU32(43)])
+    } as any);
+
+    const queue = new QueueClient(client, { queueContractId: 'CQUEUE123' });
+    const advanced = await queue.advance(2);
+    expect(advanced).toEqual([42, 43]);
   });
 });
 
@@ -59,6 +104,19 @@ describe('EnrollmentClient', () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const enrollment = new EnrollmentClient(client);
     await expect(enrollment.enroll('queue-id', 'identity')).rejects.toThrow(SDKError);
+  });
+
+  it('isEnrolled parses boolean from simulateTransaction', async () => {
+    const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
+    const enrollment = new EnrollmentClient(client);
+    const { xdr } = await import('@stellar/stellar-sdk');
+    
+    client.sorobanServer.simulateTransaction = vi.fn().mockResolvedValue({
+      result: { retval: xdr.ScVal.scvBool(true) }
+    } as any);
+
+    const result = await enrollment.isEnrolled('queue-id', 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF');
+    expect(result).toBe(true);
   });
 });
 
@@ -75,6 +133,19 @@ describe('IdentityClient', () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const identity = new IdentityClient(client);
     await expect(identity.recordTransferAttempt('from', 'to', 'queue')).rejects.toThrow('TRANSFER_DISABLED');
+  });
+
+  it('isBound parses boolean from simulateTransaction', async () => {
+    const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
+    const identity = new IdentityClient(client);
+    const { xdr } = await import('@stellar/stellar-sdk');
+    
+    client.sorobanServer.simulateTransaction = vi.fn().mockResolvedValue({
+      result: { retval: xdr.ScVal.scvBool(false) }
+    } as any);
+
+    const result = await identity.isBound('queue-id', 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF');
+    expect(result).toBe(false);
   });
 });
 

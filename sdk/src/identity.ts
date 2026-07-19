@@ -7,6 +7,7 @@ import {
   SorobanDataBuilder,
   Account,
   SorobanRpc,
+  Address,
 } from "@stellar/stellar-sdk";
 import { LineProofClient } from "./client.js";
 import { SDKError } from "./types.js";
@@ -44,43 +45,11 @@ export class IdentityClient {
   }
 
   async isBound(queueId: string, identity: string): Promise<boolean> {
-    // Build a simulation transaction for the view call
-    const source = new Account(
-      "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
-      "0",
-    );
-    const tx = new TransactionBuilder(source, {
-      fee: BASE_FEE,
-      networkPassphrase: this.client.getNetworkPassphrase(),
-    })
-      .addOperation(
-        Operation.invokeContractFunction({
-          contract: queueId,
-          function: "is_bound",
-          args: [xdr.ScVal.scvString(identity)],
-        }),
-      )
-      .setTimeout(30)
-      .build();
+    const resultXdr = await this.client.simulateContractCall(queueId, "is_bound", [
+      new Address(identity).toScVal(),
+      xdr.ScVal.scvSymbol(queueId),
+    ]);
 
-    // Simulate the transaction using Soroban RPC
-    const simulateResult =
-      await this.client.sorobanServer.simulateTransaction(tx);
-
-    if (
-      !SorobanRpc.Api.isSimulationSuccess(simulateResult) ||
-      !simulateResult.result
-    ) {
-      throw new SDKError(
-        "SIMULATION_FAILED",
-        "Contract simulation returned no result",
-      );
-    }
-
-    // Decode the XDR result
-    const resultXdr = simulateResult.result.retval;
-
-    // Parse the boolean result
     if (resultXdr.switch().name !== "scvBool") {
       throw new SDKError(
         "INVALID_RESPONSE",

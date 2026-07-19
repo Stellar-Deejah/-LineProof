@@ -7,6 +7,7 @@ import {
   SorobanDataBuilder,
   Account,
   SorobanRpc,
+  scValToNative,
 } from "@stellar/stellar-sdk";
 import { LineProofClient } from "./client.js";
 import { SDKError, Position } from "./types.js";
@@ -32,65 +33,37 @@ export class QueueClient {
       );
     }
 
-    // Build a simulation transaction for the view call
-    const source = new Account(
-      "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
-      "0",
+    const resultXdr = await this.lineProof.simulateContractCall(
+      this.queueContractId,
+      "get_position",
+      [xdr.ScVal.scvU32(positionId)],
     );
-    const tx = new TransactionBuilder(source, {
-      fee: BASE_FEE,
-      networkPassphrase: this.lineProof.networkPassphrase,
-    })
-      .addOperation(
-        Operation.invokeContractFunction({
-          contract: this.queueContractId,
-          function: "get_position",
-          args: [xdr.ScVal.scvU64(xdr.Uint64.fromString(String(positionId)))],
-        }),
-      )
-      .setTimeout(30)
-      .build();
 
-    // Simulate the transaction using Soroban RPC
-    const simulateResult =
-      await this.lineProof.sorobanServer.simulateTransaction(tx);
-
-    if (
-      !SorobanRpc.Api.isSimulationSuccess(simulateResult) ||
-      !simulateResult.result
-    ) {
-      throw new SDKError(
-        "SIMULATION_FAILED",
-        "Contract simulation returned no result",
-      );
+    if (resultXdr.switch() === xdr.ScValType.scvVoid()) {
+      throw new SDKError("NOT_FOUND", "Position not found");
     }
 
-    // Decode the XDR result
-    const resultXdr = simulateResult.result.retval;
-
-    // Parse the Position struct from the XDR result
-    // Assuming the contract returns a Position struct with fields: position_id, enrolled_at, identity, status
-    if (resultXdr.switch().name !== "scvVec") {
-      throw new SDKError(
-        "INVALID_RESPONSE",
-        "Expected Vec response from contract",
-      );
+    const parsed = scValToNative(resultXdr) as Record<string, any>;
+    if (!parsed) {
+      throw new SDKError("INVALID_RESPONSE", "Failed to parse Position from contract");
     }
 
-    const vec = resultXdr.vec();
-    if (!vec || vec.length === 0) {
-      throw new SDKError(
-        "INVALID_RESPONSE",
-        "Empty Vec response from contract",
-      );
+    // Soroban enums/symbols can sometimes be parsed as strings or objects.
+    let status = "pending";
+    if (parsed.status) {
+      if (typeof parsed.status === "string") {
+        status = parsed.status.toLowerCase();
+      } else if (parsed.status && parsed.status.tag) {
+        status = parsed.status.tag.toLowerCase();
+      }
     }
 
-    // Parse the Position struct (this is a simplified parsing - adjust based on actual contract XDR structure)
     const position: Position = {
-      positionId: BigInt(positionId),
-      enrolledAt: Date.now(),
-      identity: this.lineProof.getPublicKey(),
-      status: "pending" as any,
+      positionId: BigInt(parsed.position_id?.toString() || positionId),
+      enrolledAt: Number(parsed.enrolled_at || 0),
+      identity: parsed.identity || "",
+      status: status as any,
+      advancedAt: parsed.advanced_at ? Number(parsed.advanced_at) : undefined,
     };
 
     return position;
@@ -101,10 +74,12 @@ export class QueueClient {
       Operation.invokeContractFunction({
         contract: this.queueContractId,
         function: "advance",
-        args: [],
+        args: [xdr.ScVal.scvU32(batchSize)],
       }),
     );
-    return [parseInt(hash.slice(0, 8), 16)];
+    const resultXdr = await this.lineProof.awaitTransaction(hash);
+    const advancedIds = scValToNative(resultXdr) as number[];
+    return advancedIds || [];
   }
 
   async close(): Promise<string> {

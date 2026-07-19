@@ -2,6 +2,7 @@ import { Networks, Keypair, StrKey } from '@stellar/stellar-sdk';
 
 export interface LineProofConfig {
   rpcServerUrl: string;
+  sorobanRpcUrl?: string;
   networkPassphrase: string;
   privateKey?: string;
   publicKey?: string;
