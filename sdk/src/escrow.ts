@@ -6,6 +6,7 @@ import {
   Operation,
   Keypair,
   BASE_FEE,
+  xdr,
 } from "@stellar/stellar-sdk";
 import { LineProofClient } from "./client.js";
 import { SDKError } from "./types.js";
@@ -50,6 +51,16 @@ export class EscrowClient {
         contract: escrowContractId,
         function: "refund",
         args: [],
+      }),
+    );
+  }
+
+  async expire(escrowContractId: string, identity: string): Promise<string> {
+    return this.client.submitSorobanOperation(
+      Operation.invokeContractFunction({
+        contract: escrowContractId,
+        function: "expire",
+        args: [xdr.ScVal.scvString(identity)],
       }),
     );
   }
