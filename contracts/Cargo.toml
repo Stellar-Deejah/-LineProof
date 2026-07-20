@@ -21,7 +21,7 @@ homepage = "https://lineproof.dev"
 documentation = "https://docs.lineproof.dev"
 
 [workspace.dependencies]
-soroban-sdk = "22.0"
+soroban-sdk = "27.0"
 thiserror = "2"
 url = "2.5.4"
 
