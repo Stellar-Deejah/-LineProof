@@ -1,7 +1,8 @@
-import { Router, type IRouter, Response } from 'express';
+import { Router, type IRouter, Request, Response } from 'express';
 import { z } from 'zod';
-import { listQueues, mockQueues, getQueueById, createQueue, advanceQueue, closeQueue, getQueueStats, openEnrollment, closeEnrollment } from '../services/queueService.js';
+import { listQueues, getQueueById, createQueue, advanceQueue, closeQueue, getQueueStats, openEnrollment, closeEnrollment } from '../services/queueService.js';
 import { readQueueOnChain } from '../contracts/index.js';
+import { SlugSchema } from '../schemas/slug.js';
 
 const router: IRouter = Router();
 
@@ -18,81 +19,133 @@ const AdvanceSchema = z.object({
   batchSize: z.number().int().positive().max(1000).optional(),
 });
 
-router.get('/', (req, res: Response) => {
+router.get('/', (req, res: Response): Response => {
   const { status } = req.query;
   const queues = listQueues();
   if (status && typeof status === 'string') {
     const filtered = queues.filter((q) => q.status === status);
     return res.json(filtered);
   }
-  res.json(queues);
+  return res.json(queues);
 });
 
-router.get('/:id', async (req, res: Response, next) => {
+router.get('/:id', async (req: Request<{ id: string }>, res: Response, next): Promise<void> => {
   try {
-    // Prefer authoritative on-chain state when contract IDs are configured;
-    // fall back to the in-memory store when contracts are unset or the RPC
-    // read path is unavailable (issue #4, phase 3).
-    const onChain = await readQueueOnChain(req.params.id);
-    if (onChain) return res.json({ ...onChain, source: 'on-chain' });
+    const slugResult = SlugSchema.safeParse(req.params.id);
+    if (!slugResult.success) {
+      res.status(400).json({ message: 'Invalid queue ID format' });
+      return;
+    }
 
-    const queue = getQueueById(req.params.id);
-    if (!queue) return res.status(404).json({ message: 'Queue not found' });
+    const onChain = await readQueueOnChain(slugResult.data);
+    if (onChain) {
+      res.json({ ...onChain, source: 'on-chain' });
+      return;
+    }
+
+    const queue = getQueueById(slugResult.data);
+    if (!queue) {
+      res.status(404).json({ message: 'Queue not found' });
+      return;
+    }
     res.json({ ...queue, source: 'in-memory' });
   } catch (err) {
     next(err);
   }
 });
 
-router.get('/:id/stats', (req, res: Response) => {
-  const stats = getQueueStats(req.params.id);
+router.get('/:id/stats', (req: Request<{ id: string }>, res: Response): Response | void => {
+  const slugResult = SlugSchema.safeParse(req.params.id);
+  if (!slugResult.success) return res.status(400).json({ message: 'Invalid queue ID format' });
+
+  const stats = getQueueStats(slugResult.data);
   if (!stats) return res.status(404).json({ message: 'Queue not found' });
-  res.json(stats);
+  return res.json(stats);
 });
 
-router.post('/', (req, res: Response) => {
+router.post('/', (req, res: Response): Response => {
   const parsed = CreateQueueSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
   const queue = createQueue(parsed.data);
-  res.status(201).json(queue);
+  return res.status(201).json(queue);
 });
 
-router.post('/:id/advance', (req: any, res: Response, next) => {
+router.post('/:id/advance', (req: Request<{ id: string }>, res: Response, next): void => {
+  const slugResult = SlugSchema.safeParse(req.params.id);
+  if (!slugResult.success) {
+    res.status(400).json({ message: 'Invalid queue ID format' });
+    return;
+  }
+
   const parsed = AdvanceSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
+  if (!parsed.success) {
+    res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
+    return;
+  }
+
   try {
-    const queue = advanceQueue(req.params.id, parsed.data.batchSize ?? 10);
-    if (!queue) return res.status(404).json({ message: 'Queue not found' });
+    const queue = advanceQueue(slugResult.data, parsed.data.batchSize ?? 10);
+    if (!queue) {
+      res.status(404).json({ message: 'Queue not found' });
+      return;
+    }
     res.json(queue);
   } catch (err) {
     next(err);
   }
 });
 
-router.post('/:id/close', (req: any, res: Response, next) => {
+router.post('/:id/close', (req: Request<{ id: string }>, res: Response, next): void => {
+  const slugResult = SlugSchema.safeParse(req.params.id);
+  if (!slugResult.success) {
+    res.status(400).json({ message: 'Invalid queue ID format' });
+    return;
+  }
+
   try {
-    const queue = closeQueue(req.params.id);
-    if (!queue) return res.status(404).json({ message: 'Queue not found' });
+    const queue = closeQueue(slugResult.data);
+    if (!queue) {
+      res.status(404).json({ message: 'Queue not found' });
+      return;
+    }
     res.json(queue);
   } catch (err) {
     next(err);
   }
 });
 
-router.post('/:id/open-enrollment', (req: any, res: Response, next) => {
+router.post('/:id/open-enrollment', (req: Request<{ id: string }>, res: Response, next): void => {
+  const slugResult = SlugSchema.safeParse(req.params.id);
+  if (!slugResult.success) {
+    res.status(400).json({ message: 'Invalid queue ID format' });
+    return;
+  }
+
   try {
-    const queue = openEnrollment(req.params.id);
-    if (!queue) return res.status(404).json({ message: 'Queue not found' });
+    const queue = openEnrollment(slugResult.data);
+    if (!queue) {
+      res.status(404).json({ message: 'Queue not found' });
+      return;
+    }
     res.json(queue);
   } catch (err) {
     next(err);
   }
 });
 
-router.post('/:id/close-enrollment', (req: any, res: Response, next) => {
+router.post('/:id/close-enrollment', (req: Request<{ id: string }>, res: Response, next): void => {
+  const slugResult = SlugSchema.safeParse(req.params.id);
+  if (!slugResult.success) {
+    res.status(400).json({ message: 'Invalid queue ID format' });
+    return;
+  }
+
   try {
-    const queue = closeEnrollment(req.params.id);
-    if (!queue) return res.status(404).json({ message: 'Queue not found' });
+    const queue = closeEnrollment(slugResult.data);
+    if (!queue) {
+      res.status(404).json({ message: 'Queue not found' });
+      return;
+    }
     res.json(queue);
   } catch (err) {
     next(err);
