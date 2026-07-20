@@ -1,16 +1,25 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import userEvent from '@testing-library/user-event';
+import { axe, toHaveNoViolations } from 'jest-axe';
 import Tooltip from './Tooltip';
 
+expect.extend(toHaveNoViolations);
+
 describe('Tooltip component', () => {
-  it('does not show tooltip initially', () => {
-    render(
+  it('keeps the associated tooltip hidden in the DOM initially', () => {
+    const { container } = render(
       <Tooltip content="Helper text">
         <button>Hover me</button>
       </Tooltip>
     );
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    const trigger = screen.getByRole('button').parentElement!;
+    const tooltip = screen.getByRole('tooltip', { hidden: true });
+
+    expect(tooltip).not.toBeVisible();
+    expect(tooltip).toHaveAttribute('id');
+    expect(trigger).toHaveAttribute('aria-describedby', tooltip.id);
+    return expect(axe(container)).resolves.toHaveNoViolations();
   });
 
   it('shows tooltip on mouse enter and hides on mouse leave', async () => {
@@ -28,7 +37,7 @@ describe('Tooltip component', () => {
     expect(tooltip).toHaveTextContent('Helper text');
 
     await userEvent.unhover(trigger);
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(screen.getByRole('tooltip', { hidden: true })).not.toBeVisible();
   });
 
   it('shows tooltip on focus and hides on blur', () => {
@@ -44,6 +53,6 @@ describe('Tooltip component', () => {
     expect(screen.getByRole('tooltip')).toBeInTheDocument();
 
     fireEvent.blur(trigger);
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(screen.getByRole('tooltip', { hidden: true })).not.toBeVisible();
   });
 });

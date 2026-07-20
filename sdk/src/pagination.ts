@@ -63,9 +63,9 @@ export function paginate<T>(
   const sliced = items.slice(0, limit);
   const hasMore = items.length > limit;
   const lastItem = sliced[sliced.length - 1];
-  const nextCursor =
-    hasMore && lastItem
-      ? encodeCursor(getCursor(lastItem).ledger, getCursor(lastItem).index + 1)
-      : undefined;
-  return { items: sliced, nextCursor, count: sliced.length };
+  const page: Page<T> = { items: sliced, count: sliced.length };
+  if (hasMore && lastItem) {
+    page.nextCursor = encodeCursor(getCursor(lastItem).ledger, getCursor(lastItem).index + 1);
+  }
+  return page;
 }

@@ -30,6 +30,13 @@ function passphraseFor(network: string): string {
  * methods throw `NOT_IMPLEMENTED` (issues #9 / #14), so each read here surfaces a
  * {@link ContractReadUnavailableError}; the calling route catches it and falls
  * back to local state. Construction performs no network I/O.
+ *
+ * **Fallback Strategy:**
+ * When the Soroban RPC is unreachable, or during the transition period where 
+ * SDK methods return `NOT_IMPLEMENTED`, the adapter throws a `ContractReadUnavailableError`.
+ * The application's GET routes catch this specific error and seamlessly fall back to 
+ * serving the local in-memory/Postgres ephemeral state, ensuring the backend 
+ * API remains responsive despite network partition or missing on-chain features.
  */
 export class SorobanContractAdapter implements ContractAdapter {
   private readonly lineProof: LineProofClient;

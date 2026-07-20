@@ -7,6 +7,14 @@ const TTL_EXTEND_TO: u32 = 6_307_200;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AdvancementRule {
+    Fifo,
+    PriorityTier,
+    VerifiableRandomness,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum QueueStatus {
     Draft,
     EnrollmentOpen,
@@ -26,6 +34,7 @@ pub struct QueueConfig {
     pub enrollment_close: u64,
     pub status: QueueStatus,
     pub version: u32,
+    pub advancement_rule: AdvancementRule,
 }
 
 #[contracttype]
@@ -36,6 +45,7 @@ pub struct Position {
     pub identity: Address,
     pub status: PositionStatus,
     pub advanced_at: Option<u64>,
+    pub priority_weight: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -132,6 +142,7 @@ impl Queue for QueueImpl {
             identity: identity.clone(),
             status: PositionStatus::Pending,
             advanced_at: None,
+            priority_weight: None,
         };
         let key_pos = Self::position_key(&env, next_id);
         env.storage().persistent().set(&key_pos, &pos);
@@ -181,41 +192,51 @@ impl Queue for QueueImpl {
         env.storage().persistent().set(&key_config, &config);
         env.storage().persistent().extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
 
-        let mut advanced: Vec<u32> = Vec::new(&env);
-        let mut idx: u32 = env.storage().persistent().get(&Symbol::new(&env, "idx")).unwrap_or(0);
+        match config.advancement_rule {
+            AdvancementRule::Fifo => {
+                let mut advanced: Vec<u32> = Vec::new(&env);
+                let mut idx: u32 = env.storage().persistent().get(&Symbol::new(&env, "idx")).unwrap_or(0);
 
-        for _ in 0..batch_size {
-            if idx >= config.max_positions {
-                break;
-            }
-            let id = idx + 1;
-            if let Some(mut pos) = Self::get_position(&env, id) {
-                if matches!(pos.status, PositionStatus::Pending) {
-                    pos.status = PositionStatus::Advanced;
-                    pos.advanced_at = Some(env.ledger().timestamp());
-                    let key_pos = Self::position_key(&env, id);
-                    env.storage().persistent().set(&key_pos, &pos);
-                    env.storage().persistent().extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
-                    advanced.push_back(id);
+                for _ in 0..batch_size {
+                    if idx >= config.max_positions {
+                        break;
+                    }
+                    let id = idx + 1;
+                    if let Some(mut pos) = Self::get_position(&env, id) {
+                        if matches!(pos.status, PositionStatus::Pending) {
+                            pos.status = PositionStatus::Advanced;
+                            pos.advanced_at = Some(env.ledger().timestamp());
+                            let key_pos = Self::position_key(&env, id);
+                            env.storage().persistent().set(&key_pos, &pos);
+                            env.storage().persistent().extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
+                            advanced.push_back(id);
+                        }
+                        idx += 1;
+                    } else {
+                        break;
+                    }
                 }
-                idx += 1;
-            } else {
-                break;
+                env.storage().persistent().set(&Symbol::new(&env, "idx"), &idx);
+                env.storage().persistent().extend_ttl(&Symbol::new(&env, "idx"), TTL_THRESHOLD, TTL_EXTEND_TO);
+                // Remain in AdvancementActive so callers can issue further advance() batches
+                for id in advanced.iter() {
+                    emit(
+                        &env,
+                        Symbol::new(&env, "Advanced"),
+                        *id,
+                        &admin,
+                        env.ledger().timestamp(),
+                    );
+                }
+                advanced
+            }
+            AdvancementRule::PriorityTier => {
+                panic!("priority_tier_not_implemented");
+            }
+            AdvancementRule::VerifiableRandomness => {
+                panic!("vrf_not_implemented");
             }
         }
-        env.storage().persistent().set(&Symbol::new(&env, "idx"), &idx);
-        env.storage().persistent().extend_ttl(&Symbol::new(&env, "idx"), TTL_THRESHOLD, TTL_EXTEND_TO);
-        // Remain in AdvancementActive so callers can issue further advance() batches
-        for id in advanced.iter() {
-            emit(
-                &env,
-                Symbol::new(&env, "Advanced"),
-                *id,
-                &admin,
-                env.ledger().timestamp(),
-            );
-        }
-        advanced
     }
 
     fn get_position(env: Env, position_id: u32) -> Option<Position> {

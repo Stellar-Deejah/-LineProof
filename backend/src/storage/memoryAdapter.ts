@@ -2,7 +2,7 @@ import type { StorageAdapter } from './adapter.js';
 
 interface CounterEntry {
   value: number;
-  expiresAt?: number;
+  expiresAt?: number | undefined;
 }
 
 /**

@@ -77,3 +77,50 @@ describe('IdentityClient', () => {
     await expect(identity.recordTransferAttempt('from', 'to', 'queue')).rejects.toThrow('TRANSFER_DISABLED');
   });
 });
+
+describe('Credentials and Keypair Validation', () => {
+  it('throws SDKError("MISSING_CREDENTIALS") when no private key is configured across all transaction methods', async () => {
+    const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
+    const enrollment = new EnrollmentClient(client);
+    const escrow = new EscrowClient(client);
+    const queue = new QueueClient(client, { queueContractId: 'queue-id' });
+    const identity = new IdentityClient(client);
+
+    await expect(enrollment.enroll('queue-id', 'identity')).rejects.toThrow(SDKError);
+    await expect(enrollment.cancel('queue-id', 'identity')).rejects.toThrow(SDKError);
+    await expect(queue.advance(1)).rejects.toThrow(SDKError);
+    await expect(queue.close()).rejects.toThrow(SDKError);
+    await expect(identity.bindIdentity('queue-id', 'identity')).rejects.toThrow(SDKError);
+    await expect(escrow.deposit('escrow-id', 10, 'USDC')).rejects.toThrow(SDKError);
+    await expect(escrow.release('escrow-id', 'identity')).rejects.toThrow(SDKError);
+    await expect(escrow.refund('escrow-id', 'identity')).rejects.toThrow(SDKError);
+    await expect(escrow.expire('escrow-id', 'identity')).rejects.toThrow(SDKError);
+  });
+
+  it('never calls Keypair.fromSecret with a G-prefixed string', async () => {
+    const client = new LineProofClient({ 
+      rpcServerUrl: 'http://localhost:8000', 
+      networkPassphrase: TEST_NET, 
+      privateKey: 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' 
+    });
+    const enrollment = new EnrollmentClient(client);
+    
+    // Clear previous mock calls
+    const { Keypair } = await import('@stellar/stellar-sdk');
+    const mockFromSecret = Keypair.fromSecret as any;
+    mockFromSecret.mockClear();
+
+    client.sorobanServer = {
+      getAccount: vi.fn().mockResolvedValue({ sequence: '1' }),
+      prepareTransaction: vi.fn().mockResolvedValue({ sign: vi.fn() }),
+      sendTransaction: vi.fn().mockResolvedValue({ status: 'SUCCESS', hash: 'mockhash' })
+    } as any;
+
+    await enrollment.enroll('queue-id', 'identity');
+    
+    for (const call of mockFromSecret.mock.calls) {
+      expect(typeof call[0]).toBe('string');
+      expect(call[0].startsWith('G')).toBe(false);
+    }
+  });
+});

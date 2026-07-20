@@ -1,7 +1,8 @@
-type Status = 'Draft' | 'EnrollmentOpen' | 'EnrollmentClosed' | 'AdvancementActive' | 'Closed';
+type Status = 'Draft' | 'Open' | 'EnrollmentOpen' | 'EnrollmentClosed' | 'AdvancementActive' | 'Closed';
 
 const STATUS_STYLES: Record<Status, string> = {
   Draft: 'bg-slate-100 text-slate-600 border-slate-200',
+  Open: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   EnrollmentOpen: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   EnrollmentClosed: 'bg-amber-50 text-amber-700 border-amber-200',
   AdvancementActive: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -10,6 +11,7 @@ const STATUS_STYLES: Record<Status, string> = {
 
 const STATUS_LABELS: Record<Status, string> = {
   Draft: 'Draft',
+  Open: 'Open',
   EnrollmentOpen: 'Enrollment Open',
   EnrollmentClosed: 'Enrollment Closed',
   AdvancementActive: 'Advancing',
