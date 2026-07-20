@@ -1,7 +1,6 @@
-import { QueueStatus, transitionQueueStatus } from "../schemas/queueStatus.js";
+import { QueueStatus, transitionQueueStatus } from '../schemas/queueStatus.js';
 export { QueueStatus };
 import { defaultMemoryAdapter } from '../storage/index.js';
-import { defaultMemoryAdapter } from "../storage/index.js";
 
 export type Queue = {
   id: string;
@@ -12,7 +11,7 @@ export type Queue = {
   enrolled: number;
   advanced: number;
   status: QueueStatus;
-  advancementRule: "FIFO" | "Priority" | "VerifiableRandomness";
+  advancementRule: 'FIFO' | 'Priority' | 'VerifiableRandomness';
   escrowAsset: string;
   escrowAmount: number;
   createdAt: string;
@@ -31,35 +30,34 @@ export type QueueStats = {
 // (issue #4). The MemoryAdapter stores object references, so mutating a returned
 // queue mutates the stored record — preserving the previous fixture behaviour.
 const store = defaultMemoryAdapter;
-const NS = "queues";
+const NS = 'queues';
 
 const FIXTURE_QUEUES: Queue[] = [
   {
-    id: "sneaker-drop-001",
-    name: "Sneaker Drop #001",
-    slug: "sneaker-drop-001",
-    description:
-      "Limited-edition sneaker release with non-transferable queue positions and escrow hold.",
+    id: 'sneaker-drop-001',
+    name: 'Sneaker Drop #001',
+    slug: 'sneaker-drop-001',
+    description: 'Limited-edition sneaker release with non-transferable queue positions and escrow hold.',
     maxPositions: 250,
     enrolled: 187,
     advanced: 0,
     status: QueueStatus.EnrollmentOpen,
-    advancementRule: "FIFO",
-    escrowAsset: "USDC",
+    advancementRule: 'FIFO',
+    escrowAsset: 'USDC',
     escrowAmount: 150,
     createdAt: new Date(Date.now() - 86400_000 * 3).toISOString(),
   },
   {
-    id: "visa-appointment-001",
-    name: "Visa Appointment Batch A",
-    slug: "visa-appointment-001",
-    description: "Deterministic FIFO queue for scheduled visa interviews.",
+    id: 'visa-appointment-001',
+    name: 'Visa Appointment Batch A',
+    slug: 'visa-appointment-001',
+    description: 'Deterministic FIFO queue for scheduled visa interviews.',
     maxPositions: 120,
     enrolled: 120,
     advanced: 120,
     status: QueueStatus.Closed,
-    advancementRule: "FIFO",
-    escrowAsset: "XLM",
+    advancementRule: 'FIFO',
+    escrowAsset: 'XLM',
     escrowAmount: 25,
     createdAt: new Date(Date.now() - 86400_000 * 14).toISOString(),
   },
@@ -88,10 +86,7 @@ export const getQueueStats = (id: string): QueueStats | undefined => {
     total: queue.enrolled,
     advanced: queue.advanced,
     remaining: queue.enrolled - queue.advanced,
-    percentAdvanced:
-      queue.enrolled > 0
-        ? Math.round((queue.advanced / queue.enrolled) * 100)
-        : 0,
+    percentAdvanced: queue.enrolled > 0 ? Math.round((queue.advanced / queue.enrolled) * 100) : 0,
   };
 };
 
@@ -99,19 +94,12 @@ export const createQueue = (payload: {
   name: string;
   slug: string;
   maxPositions: number;
-  advancementRule?: 'FIFO' | 'Priority' | 'VerifiableRandomness' | undefined;
-  escrowRequired?: boolean | undefined;
-  description?: string | undefined;
-  advancementRule?: "FIFO" | "Priority" | "VerifiableRandomness";
+  advancementRule?: 'FIFO' | 'Priority' | 'VerifiableRandomness';
   escrowRequired?: boolean;
   description?: string;
 }): Queue => {
-  if (
-    listQueues().some((q) => q.slug === payload.slug || q.id === payload.slug)
-  ) {
-    const error = new Error(
-      `Queue with slug "${payload.slug}" already exists`,
-    ) as Error & { status: number };
+  if (listQueues().some((q) => q.slug === payload.slug || q.id === payload.slug)) {
+    const error = new Error(`Queue with slug "${payload.slug}" already exists`) as Error & { status: number };
     error.status = 409;
     throw error;
   }
@@ -119,13 +107,13 @@ export const createQueue = (payload: {
     id: payload.slug,
     name: payload.name,
     slug: payload.slug,
-    description: payload.description ?? "New queue",
+    description: payload.description ?? 'New queue',
     maxPositions: payload.maxPositions,
     enrolled: 0,
     advanced: 0,
     status: QueueStatus.Draft,
-    advancementRule: payload.advancementRule ?? "FIFO",
-    escrowAsset: "XLM",
+    advancementRule: payload.advancementRule ?? 'FIFO',
+    escrowAsset: 'XLM',
     escrowAmount: 0,
     createdAt: new Date().toISOString(),
   };
@@ -133,20 +121,17 @@ export const createQueue = (payload: {
   return queue;
 };
 
-export const advanceQueue = (
-  id: string,
-  batchSize: number,
-): Queue | undefined => {
+export const advanceQueue = (id: string, batchSize: number): Queue | undefined => {
   const queue = getQueueById(id);
   if (!queue) return undefined;
-
+  
   try {
     transitionQueueStatus(queue.status, QueueStatus.AdvancementActive);
   } catch (err: any) {
     err.status = 409;
     throw err;
   }
-
+  
   queue.status = QueueStatus.AdvancementActive;
   const toAdvance = Math.min(batchSize, queue.enrolled - queue.advanced);
   queue.advanced += Math.max(0, toAdvance);

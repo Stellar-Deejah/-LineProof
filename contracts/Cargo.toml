@@ -25,6 +25,9 @@ soroban-sdk = "22.0"
 thiserror = "2"
 url = "2.5.4"
 
+[patch.crates-io]
+soroban-env-host = { path = ".patched/soroban-env-host" }
+
 [profile.release]
 opt-level = "z"
 overflow-checks = true
