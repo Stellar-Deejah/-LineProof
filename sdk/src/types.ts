@@ -1,13 +1,46 @@
 import { Networks, Keypair, StrKey } from '@stellar/stellar-sdk';
 
 export interface LineProofConfig {
-  rpcServerUrl: string;
+  /** Horizon REST endpoint for classic Stellar operations (e.g. https://horizon-testnet.stellar.org). */
+  horizonUrl?: string;
+  /** Soroban RPC endpoint for contract calls and events (e.g. https://soroban-testnet.stellar.org). */
   sorobanRpcUrl?: string;
+  /**
+   * @deprecated Use `horizonUrl` and `sorobanRpcUrl` instead. Horizon and
+   * Soroban RPC are different endpoints in every real deployment; this field
+   * is used as a fallback for whichever of the two is omitted, and using it
+   * on its own emits a console warning. It will be removed in a future major
+   * version — see docs/sdk-architecture.md for the migration path.
+   */
+  rpcServerUrl?: string;
   networkPassphrase: string;
   privateKey?: string;
   publicKey?: string;
   timeoutMs?: number;
   maxRetries?: number;
+}
+
+/**
+ * Resolves the Horizon and Soroban RPC endpoints from a `LineProofConfig`,
+ * falling back to the deprecated `rpcServerUrl` for whichever of the two
+ * split fields is missing, and to `defaults` if none of the three are set.
+ * Warns once per call when `rpcServerUrl` is the only URL supplied.
+ */
+export function resolveEndpoints(
+  config: Pick<LineProofConfig, 'horizonUrl' | 'sorobanRpcUrl' | 'rpcServerUrl'>,
+  defaults: { horizonUrl: string; sorobanRpcUrl: string },
+): { horizonUrl: string; sorobanRpcUrl: string } {
+  if (config.rpcServerUrl && !config.horizonUrl && !config.sorobanRpcUrl) {
+    console.warn(
+      '[@lineproof/sdk] `rpcServerUrl` is deprecated and will be removed in a future release. ' +
+        'Set `horizonUrl` and `sorobanRpcUrl` explicitly — Horizon and Soroban RPC are different ' +
+        'endpoints in every real deployment (e.g. horizon-testnet.stellar.org vs soroban-testnet.stellar.org).',
+    );
+  }
+  return {
+    horizonUrl: config.horizonUrl ?? config.rpcServerUrl ?? defaults.horizonUrl,
+    sorobanRpcUrl: config.sorobanRpcUrl ?? config.rpcServerUrl ?? defaults.sorobanRpcUrl,
+  };
 }
 
 /** Convenience enum so callers don't need to import from @stellar/stellar-sdk */
@@ -120,7 +153,8 @@ export class SDKError extends Error {
 }
 
 export const DEFAULT_LINEPROOF_CONFIG = {
-  rpcServerUrl: 'http://localhost:8000/soroban/rpc',
+  horizonUrl: 'http://localhost:8000',
+  sorobanRpcUrl: 'http://localhost:8000/soroban/rpc',
   // Local enum, not Networks.TESTNET: a top-level property access on the
   // @stellar/stellar-sdk import would defeat tree-shaking for consumers.
   networkPassphrase: NetworkPassphrase.TESTNET as string,

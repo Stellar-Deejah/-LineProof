@@ -2,18 +2,11 @@ import {
   TransactionBuilder,
   Operation,
   BASE_FEE,
-  SorobanRpc,
   xdr,
+  Address,
 } from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
 import { SDKError } from './types.js';
-  SorobanDataBuilder,
-  Account,
-  SorobanRpc,
-  Address,
-} from "@stellar/stellar-sdk";
-import { LineProofClient } from "./client.js";
-import { SDKError } from "./types.js";
 
 export class IdentityClient {
   private readonly client: LineProofClient;

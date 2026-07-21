@@ -1,15 +1,6 @@
-import { TransactionBuilder, Operation, BASE_FEE } from '@stellar/stellar-sdk';
+import { Operation, xdr } from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
 import { SDKError } from './types.js';
-import {
-  TransactionBuilder,
-  Operation,
-  Keypair,
-  BASE_FEE,
-  xdr,
-} from "@stellar/stellar-sdk";
-import { LineProofClient } from "./client.js";
-import { SDKError } from "./types.js";
 
 export class EscrowClient {
   private readonly client: LineProofClient;
@@ -24,12 +15,12 @@ export class EscrowClient {
     _asset: string,
   ): Promise<string> {
     if (amount <= 0) {
-      throw new SDKError("INVALID_INPUT", "deposit amount must be positive");
+      throw new SDKError('INVALID_INPUT', 'deposit amount must be positive');
     }
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
         contract: escrowContractId,
-        function: "deposit",
+        function: 'deposit',
         args: [],
       }),
     );
@@ -39,7 +30,7 @@ export class EscrowClient {
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
         contract: escrowContractId,
-        function: "release",
+        function: 'release',
         args: [],
       }),
     );
@@ -49,7 +40,7 @@ export class EscrowClient {
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
         contract: escrowContractId,
-        function: "refund",
+        function: 'refund',
         args: [],
       }),
     );
@@ -59,7 +50,7 @@ export class EscrowClient {
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
         contract: escrowContractId,
-        function: "expire",
+        function: 'expire',
         args: [xdr.ScVal.scvString(identity)],
       }),
     );
