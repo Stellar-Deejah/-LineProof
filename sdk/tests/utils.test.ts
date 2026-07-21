@@ -90,3 +90,73 @@ describe('generateTestKeypair', () => {
     expect(kp1.publicKey).not.toBe(kp2.publicKey);
   });
 });
+
+describe('toStroops precision and validation (issue #88)', () => {
+  it('converts one stroop from a string without truncating to zero', () => {
+    expect(toStroops('0.0000001')).toBe(1n);
+  });
+
+  it('converts one stroop from a number without floating-point truncation', () => {
+    // The old implementation computed BigInt(Math.round(0.0000001 * 10_000_000)).
+    // Float multiplication makes that fragile; parsing the digits is exact.
+    expect(toStroops(0.0000001)).toBe(1n);
+  });
+
+  it('accepts both string and number input for the same value', () => {
+    expect(toStroops('123.456789')).toBe(toStroops(123.456789));
+    expect(toStroops('1')).toBe(10_000_000n);
+  });
+
+  it('is exact for values a float cannot represent cleanly', () => {
+    expect(toStroops('0.1')).toBe(1_000_000n);
+    expect(toStroops('0.3')).toBe(3_000_000n);
+    expect(toStroops('1.0000001')).toBe(10_000_001n);
+  });
+
+  it('throws SDKError for NaN', () => {
+    expect(() => toStroops(NaN)).toThrow(SDKError);
+  });
+
+  it('throws SDKError for Infinity', () => {
+    expect(() => toStroops(Infinity)).toThrow(SDKError);
+    expect(() => toStroops(-Infinity)).toThrow(SDKError);
+  });
+
+  it('throws SDKError for malformed strings and excess precision', () => {
+    expect(() => toStroops('abc')).toThrow(SDKError);
+    expect(() => toStroops('1e5')).toThrow(SDKError);
+    expect(() => toStroops('')).toThrow(SDKError);
+    expect(() => toStroops('0.12345678')).toThrow(SDKError); // 8 decimals
+  });
+
+  it('throws SDKError for amounts beyond i128', () => {
+    expect(() => toStroops('1' + '0'.repeat(40))).toThrow(SDKError);
+  });
+});
+
+describe('fromStroops (issue #88)', () => {
+  it('formats one stroop', () => {
+    expect(fromStroops(1n)).toBe('0.0000001');
+  });
+
+  it('formats whole units without a fractional part', () => {
+    expect(fromStroops(10_000_000n)).toBe('1');
+    expect(fromStroops(0n)).toBe('0');
+  });
+
+  it('trims trailing zeros but keeps significant digits', () => {
+    expect(fromStroops(1_234_567_890n)).toBe('123.456789');
+    expect(fromStroops(5_000_000n)).toBe('0.5');
+  });
+
+  it('round-trips through toStroops', () => {
+    expect(fromStroops(toStroops('123.4567890'))).toBe('123.456789');
+    expect(fromStroops(toStroops('0.0000001'))).toBe('0.0000001');
+    expect(fromStroops(toStroops(1))).toBe('1');
+  });
+
+  it('handles large amounts near the i128 boundary', () => {
+    const large = '170141183460469231731';
+    expect(fromStroops(toStroops(large))).toBe(large);
+  });
+});

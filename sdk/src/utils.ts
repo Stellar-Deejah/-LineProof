@@ -16,18 +16,81 @@ export function assertValidAddress(address: string, fieldName = 'address'): void
   }
 }
 
-/** Converts a readable asset amount to stroops (7 decimal places). */
-export function toStroops(amount: number): bigint {
-  if (amount < 0) throw new SDKError('INVALID_AMOUNT', 'Amount must be non-negative');
-  return BigInt(Math.round(amount * 10_000_000));
+/** Number of decimal places in one unit. Stellar/Soroban use 7 (1 unit = 10^7 stroops). */
+export const STROOP_SCALE = 7;
+const STROOP_FACTOR = 10_000_000n;
+/** Largest value representable by Soroban's i128 amount type. */
+const I128_MAX = (1n << 127n) - 1n;
+
+const DECIMAL_PATTERN = /^-?\d+(\.\d+)?$/;
+
+/**
+ * Converts a readable asset amount to integer stroops (7 decimal places).
+ *
+ * Accepts a decimal **string** (preferred — exact) or a number. The conversion
+ * never multiplies a float by 10^7: the value is parsed as a decimal string and
+ * assembled with BigInt arithmetic, so fractional amounts cannot be silently
+ * truncated. `0.1 * 10_000_000` is not exactly `1_000_000` in IEEE-754, and
+ * `Math.round` hides that; parsing the digits avoids the problem entirely.
+ *
+ * @throws SDKError('INVALID_AMOUNT') for NaN, Infinity, negatives, malformed
+ * input, more than 7 decimal places, or values exceeding i128.
+ */
+export function toStroops(amount: string | number): bigint {
+  let text: string;
+
+  if (typeof amount === 'number') {
+    if (!Number.isFinite(amount)) {
+      throw new SDKError('INVALID_AMOUNT', `Amount must be a finite number, received ${amount}`, {
+        value: amount,
+      });
+    }
+    // Render at fixed precision first so no float multiplication is involved.
+    text = amount.toFixed(STROOP_SCALE);
+  } else if (typeof amount === 'string') {
+    text = amount.trim();
+  } else {
+    throw new SDKError('INVALID_AMOUNT', `Amount must be a string or number, received ${typeof amount}`, {
+      value: amount as unknown,
+    });
+  }
+
+  if (!DECIMAL_PATTERN.test(text)) {
+    throw new SDKError('INVALID_AMOUNT', `Amount is not a plain decimal value: "${String(amount)}"`, {
+      value: amount,
+    });
+  }
+  if (text.startsWith('-')) {
+    throw new SDKError('INVALID_AMOUNT', 'Amount must be non-negative', { value: amount });
+  }
+
+  const [whole, fraction = ''] = text.split('.');
+  if (fraction.length > STROOP_SCALE) {
+    throw new SDKError(
+      'INVALID_AMOUNT',
+      `Amount "${String(amount)}" has ${fraction.length} decimal places; at most ${STROOP_SCALE} are supported`,
+      { value: amount },
+    );
+  }
+
+  const stroops = BigInt(whole) * STROOP_FACTOR + BigInt(fraction.padEnd(STROOP_SCALE, '0') || '0');
+  if (stroops > I128_MAX) {
+    throw new SDKError('INVALID_AMOUNT', 'Amount exceeds the maximum i128 value supported on Soroban', {
+      value: amount,
+    });
+  }
+  return stroops;
 }
 
 /** Converts stroops back to a human-readable decimal string. */
 export function fromStroops(stroops: bigint): string {
-  const whole = stroops / 10_000_000n;
-  const frac = stroops % 10_000_000n;
-  const fracStr = frac.toString().padStart(7, '0').replace(/0+$/, '');
-  return fracStr.length > 0 ? `${whole}.${fracStr}` : `${whole}`;
+  const negative = stroops < 0n;
+  const abs = negative ? -stroops : stroops;
+  const whole = abs / STROOP_FACTOR;
+  const frac = abs % STROOP_FACTOR;
+  const fracStr = frac.toString().padStart(STROOP_SCALE, '0').replace(/0+$/, '');
+  const text = fracStr.length > 0 ? `${whole}.${fracStr}` : `${whole}`;
+  return negative ? `-${text}` : text;
 }
 
 /** Returns the current Unix timestamp in seconds. */
