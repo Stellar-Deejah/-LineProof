@@ -14,7 +14,7 @@ describe('Enrollments Routes', () => {
     it('returns 400 on invalid body', async () => {
       const res = await request(app).post('/api/enrollments').send({ queueId: 'q1' });
       expect(res.status).toBe(400);
-      expect(res.body.issues).toBeDefined();
+      expect(res.body.error.issues).toBeDefined();
     });
 
     it('returns 409 on conflict', async () => {

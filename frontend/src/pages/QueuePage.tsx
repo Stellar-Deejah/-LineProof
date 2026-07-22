@@ -5,19 +5,20 @@ import { useQueue } from '../hooks/useQueues';
 import { useEnrollment } from '../hooks/useEnrollment';
 import QueueStatusBadge from '../components/QueueStatusBadge';
 import ProgressBar from '../components/ProgressBar';
-import Spinner from '../components/Spinner';
+import QueuePageSkeleton from '../components/QueuePageSkeleton';
 import CopyButton from '../components/CopyButton';
+import AlertBanner from '../components/AlertBanner';
 import EscrowStatusCard from '../components/EscrowStatusCard';
 import LiveRegion from '../components/LiveRegion';
 
 function Stat({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <dt className="text-xs text-slate-500">
-        <span className="mb-2 block text-slate-500" aria-hidden="true">{icon}</span>
+    <div className="rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-800/50 dark:border-slate-700 p-4">
+      <dt className="text-xs text-slate-500 dark:text-slate-400">
+        <span className="mb-2 block text-slate-500 dark:text-slate-400" aria-hidden="true">{icon}</span>
         {label}
       </dt>
-      <dd className="mt-0.5 text-sm font-semibold text-slate-900">{value}</dd>
+      <dd className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-slate-50">{value}</dd>
     </div>
   );
 }
@@ -53,29 +54,29 @@ export default function QueuePage() {
     }
   };
 
-  if (loading) return (
-    <div className="flex items-center gap-2 text-sm text-slate-600"><Spinner size="sm" /> Loading queue…</div>
-  );
+  if (loading) return <QueuePageSkeleton />;
 
   if (error || !queue) return (
-    <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+    <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/30 dark:border-red-800 p-4 text-sm text-red-700 dark:text-red-400">
       {error ?? 'Queue not found.'}
     </div>
+    <AlertBanner variant="error" message={error ?? 'Queue not found.'} />
   );
 
   const pct = queue.maxPositions > 0 ? Math.round((queue.enrolled / queue.maxPositions) * 100) : 0;
 
   return (
     <div className="space-y-6">
-      <Link to="/queues" className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900">
+      <LiveRegion type="status" className="sr-only">Content loaded</LiveRegion>
+      <Link to="/queues" className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50">
         <ArrowLeft className="h-4 w-4" /> Back to queues
       </Link>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 p-6 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">{queue.name}</h2>
-            <p className="mt-1 text-sm text-slate-600">{queue.description}</p>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50">{queue.name}</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{queue.description}</p>
           </div>
           <QueueStatusBadge status={queue.status} />
         </div>
@@ -89,18 +90,18 @@ export default function QueuePage() {
         <ProgressBar value={pct} label="Enrollment fill" className="mt-6" />
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 p-6 shadow-sm">
         {result && !result.conflict ? (
           <div className="space-y-6">
             <div className="space-y-3">
-              <h3 className="text-base font-semibold text-slate-900">Manage position</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Manage position</h3>
               <LiveRegion
                 type="status"
-                className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
+                className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/30 dark:border-emerald-800 p-4 text-sm text-emerald-800 dark:text-emerald-400"
               >
                 Enrolled successfully. This position is bound to your identity and cannot be transferred or resold.
               </LiveRegion>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
+              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 <span className="font-mono truncate">{result.identity}</span>
                 <CopyButton text={result.identity} label="Copy key" />
               </div>
@@ -110,21 +111,21 @@ export default function QueuePage() {
               <EscrowStatusCard queueId={id} identity={result.identity} />
             )}
 
-            <div className="border-t border-slate-100 pt-4">
+            <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
               {!showCancelConfirm ? (
                 <button
                   onClick={() => setShowCancelConfirm(true)}
-                  className="text-sm text-red-600 hover:text-red-700 font-medium"
+                  className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium"
                 >
                   Cancel enrollment
                 </button>
               ) : (
-                <div className="rounded-lg border border-red-100 bg-red-50 p-4">
-                  <p className="text-sm text-red-800 mb-3">
+                <div className="rounded-lg border border-red-100 bg-red-50 dark:bg-red-900/30 dark:border-red-800 p-4">
+                  <p className="text-sm text-red-800 dark:text-red-400 mb-3">
                     Are you sure? This will surrender your position in the queue.
                   </p>
                   {cancelError && (
-                    <LiveRegion className="mb-3 text-sm text-red-600">
+                    <LiveRegion className="mb-3 text-sm text-red-600 dark:text-red-400">
                       {cancelError}
                     </LiveRegion>
                   )}
@@ -132,14 +133,14 @@ export default function QueuePage() {
                     <button
                       onClick={handleCancel}
                       disabled={cancelling}
-                      className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                      className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 disabled:opacity-60"
                     >
                       {cancelling ? 'Cancelling…' : 'Yes, cancel'}
                     </button>
                     <button
                       onClick={() => setShowCancelConfirm(false)}
                       disabled={cancelling}
-                      className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-700 border border-slate-300 hover:bg-slate-50"
+                      className="rounded-lg bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
                     >
                       Keep position
                     </button>
@@ -151,8 +152,8 @@ export default function QueuePage() {
         ) : (
           <form onSubmit={handleEnroll} className="space-y-4">
             <div>
-              <h3 className="text-base font-semibold text-slate-900">Enroll with your identity</h3>
-              <p className="text-sm text-slate-600 mt-1">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Enroll with your identity</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                 Your Stellar public key will own this non-transferable position.
               </p>
             </div>
@@ -161,22 +162,27 @@ export default function QueuePage() {
               aria-label="Stellar public key"
               onChange={(e) => setPublicKey(e.currentTarget.value)}
               placeholder="G…"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-400"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500"
             />
             {(inputError || enrollError) && (
+              <LiveRegion className="text-sm text-red-600 dark:text-red-400">
+              <AlertBanner variant="error" message={inputError ?? enrollError ?? ''} />
+            )}
+            {result?.conflict && (
+              <AlertBanner variant="warning" message="This identity is already enrolled in this queue." />
               <LiveRegion className="text-sm text-red-600">
                 {inputError ?? enrollError}
               </LiveRegion>
             )}
             {result?.conflict && (
-              <LiveRegion className="text-sm text-amber-600">
+              <LiveRegion className="text-sm text-amber-600 dark:text-amber-400">
                 This identity is already enrolled in this queue.
               </LiveRegion>
             )}
             <button
               type="submit"
               disabled={enrolling || queue.status === 'Closed'}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+              className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 disabled:opacity-60"
             >
               {enrolling ? 'Submitting…' : 'Enroll now'}
             </button>

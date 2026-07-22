@@ -31,7 +31,6 @@ pub struct TransferAttempt {
     pub reverted: bool,
 }
 
-#[contract]
 pub trait Identity {
     fn bind(env: Env, identity: Address, queue_id: Symbol);
     fn unbind(env: Env, identity: Address, queue_id: Symbol);
@@ -45,6 +44,7 @@ pub trait Identity {
     fn set_transfer_allowed(env: Env, admin: Address, allowed: bool);
 }
 
+#[contract]
 pub struct IdentityImpl;
 
 #[contractimpl]
@@ -205,10 +205,10 @@ impl IdentityImpl {
 
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64) {
     env.events().publish((
-        Symbol::new(env, "lineproof.identity"),
+        Symbol::new(env, "lineproof_identity"),
         kind,
         queue_id,
-    ));
+    ), ());
 }
 
 #[cfg(test)]

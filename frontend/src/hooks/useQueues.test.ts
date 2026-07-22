@@ -1,10 +1,11 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { useQueues, useQueue } from './useQueues';
+import { useQueues, useQueue, clearQueuesCache } from './useQueues';
 
 describe('useQueues hook', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
+    clearQueuesCache();
   });
 
   afterEach(() => {

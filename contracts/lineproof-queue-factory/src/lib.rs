@@ -34,7 +34,6 @@ pub struct FactoryConfig {
     pub max_version: u32,
 }
 
-#[contract]
 pub trait QueueFactory {
     fn initialize(env: Env, admin: Address);
     fn deploy_queue(
@@ -58,6 +57,7 @@ pub trait QueueFactory {
     fn queue_count(env: Env) -> u32;
 }
 
+#[contract]
 pub struct QueueFactoryImpl;
 
 #[contractimpl]
@@ -396,7 +396,7 @@ impl QueueFactoryImpl {
 
 fn emit(env: &Env, kind: Symbol, slug: Symbol, _contract_id: BytesN<32>, version: u32, _timestamp: u64) {
     env.events()
-        .publish((Symbol::new(env, "lineproof.factory"), kind, slug, version));
+        .publish((Symbol::new(env, "lineproof_factory"), kind, slug, version), ());
 }
 
 #[cfg(test)]

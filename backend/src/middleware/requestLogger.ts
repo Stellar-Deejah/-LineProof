@@ -19,6 +19,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
     console.log(
       JSON.stringify({
         level,
+        requestId: res.locals.requestId,
         method: req.method,
         path: req.path,
         status: res.statusCode,
