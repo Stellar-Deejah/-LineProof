@@ -1,6 +1,7 @@
 import { QueueStatus, transitionQueueStatus } from '../schemas/queueStatus.js';
 export { QueueStatus };
 import { defaultMemoryAdapter } from '../storage/index.js';
+import { serviceEmitter } from './eventEmitter.js';
 
 export type Queue = {
   id: string;
@@ -94,9 +95,9 @@ export const createQueue = (payload: {
   name: string;
   slug: string;
   maxPositions: number;
-  advancementRule?: 'FIFO' | 'Priority' | 'VerifiableRandomness';
-  escrowRequired?: boolean;
-  description?: string;
+  advancementRule?: 'FIFO' | 'Priority' | 'VerifiableRandomness' | undefined;
+  escrowRequired?: boolean | undefined;
+  description?: string | undefined;
 }): Queue => {
   if (listQueues().some((q) => q.slug === payload.slug || q.id === payload.slug)) {
     const error = new Error(`Queue with slug "${payload.slug}" already exists`) as Error & { status: number };
@@ -118,6 +119,7 @@ export const createQueue = (payload: {
     createdAt: new Date().toISOString(),
   };
   store.set<Queue>(NS, queue.id, queue);
+  serviceEmitter.emit('queue.created', queue);
   return queue;
 };
 
@@ -132,10 +134,16 @@ export const advanceQueue = (id: string, batchSize: number): Queue | undefined =
     throw err;
   }
   
+  const oldStatus = queue.status;
   queue.status = QueueStatus.AdvancementActive;
   const toAdvance = Math.min(batchSize, queue.enrolled - queue.advanced);
   queue.advanced += Math.max(0, toAdvance);
   store.set<Queue>(NS, queue.id, queue);
+  
+  if (oldStatus !== queue.status) {
+    serviceEmitter.emit('queue.status_changed', { queueId: queue.id, status: queue.status, queue });
+  }
+  serviceEmitter.emit('queue.advanced', { queueId: queue.id, advanced: queue.advanced, queue });
   return queue;
 };
 
@@ -148,7 +156,12 @@ export const closeQueue = (id: string): Queue | undefined => {
     err.status = 409;
     throw err;
   }
+  const oldStatus = queue.status;
   queue.status = QueueStatus.Closed;
+  store.set<Queue>(NS, queue.id, queue);
+  if (oldStatus !== queue.status) {
+    serviceEmitter.emit('queue.status_changed', { queueId: queue.id, status: queue.status, queue });
+  }
   return queue;
 };
 
@@ -161,7 +174,12 @@ export const openEnrollment = (id: string): Queue | undefined => {
     err.status = 409;
     throw err;
   }
+  const oldStatus = queue.status;
   queue.status = QueueStatus.EnrollmentOpen;
+  store.set<Queue>(NS, queue.id, queue);
+  if (oldStatus !== queue.status) {
+    serviceEmitter.emit('queue.status_changed', { queueId: queue.id, status: queue.status, queue });
+  }
   return queue;
 };
 
@@ -174,6 +192,11 @@ export const closeEnrollment = (id: string): Queue | undefined => {
     err.status = 409;
     throw err;
   }
+  const oldStatus = queue.status;
   queue.status = QueueStatus.EnrollmentClosed;
+  store.set<Queue>(NS, queue.id, queue);
+  if (oldStatus !== queue.status) {
+    serviceEmitter.emit('queue.status_changed', { queueId: queue.id, status: queue.status, queue });
+  }
   return queue;
 };

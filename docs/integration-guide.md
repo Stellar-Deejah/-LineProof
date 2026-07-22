@@ -102,3 +102,78 @@ for (const event of events) {
 - See [docs/use-cases.md](./use-cases.md) for industry-specific patterns
 - Review [docs/security-considerations.md](./security-considerations.md)
 - Check [examples/](../examples/) for full application examples
+
+## Webhooks
+
+LineProof supports real-time notifications via webhooks. When state-mutating events occur, the backend computes an HMAC-SHA256 signature of the payload and dispatches a signed POST request to your registered webhook URL.
+
+### Webhook Registration
+
+Manage registrations via the gated `/api/webhooks` REST endpoints. Requests require the operator token in the `Authorization: Bearer <token>` header.
+
+#### Create Subscription
+
+`POST /api/webhooks`
+```json
+{
+  "url": "https://yourserver.com/webhooks/lineproof",
+  "secret": "your_webhook_signing_secret",
+  "events": ["enrollment.created", "escrow.released"]
+}
+```
+*Note: Use `["*"]` to subscribe to all event types.*
+
+#### List Subscriptions
+
+`GET /api/webhooks`
+
+#### Delete Subscription
+
+`DELETE /api/webhooks/:id`
+
+### Payload Format
+
+```json
+{
+  "id": "e0e84bfa-fce6-4a4f-8e47-aef233ef52f1",
+  "event": "enrollment.created",
+  "created": "2026-07-22T21:16:30.123Z",
+  "data": {
+    "queueId": "launch-001",
+    "identity": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+    "enrolledAt": "2026-07-22T21:16:29.980Z",
+    "conflict": false,
+    "cancelled": false
+  }
+}
+```
+
+### Signature Verification
+
+To prevent spoofing attacks, verify the HMAC-SHA256 signature passed in the `X-LineProof-Signature` header:
+
+```typescript
+import crypto from 'crypto';
+
+export function verifyWebhook(
+  rawBody: string,
+  signatureHeader: string,
+  secret: string
+): boolean {
+  if (!signatureHeader || !signatureHeader.startsWith('sha256=')) {
+    return false;
+  }
+
+  const expectedSignature = signatureHeader.substring(7); // strip 'sha256='
+  const computedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody)
+    .digest('hex');
+
+  // Use timingSafeEqual to protect against timing attacks
+  return crypto.timingSafeEqual(
+    Buffer.from(expectedSignature, 'hex'),
+    Buffer.from(computedSignature, 'hex')
+  );
+}
+```

@@ -20,8 +20,8 @@ export interface BackendConfig {
   databaseUrl?: string | undefined;
   sorobanRpcUrl: string;
   stellarNetwork: string;
-  networkPassphrase?: string;
-  operatorSecretKey?: string;
+  networkPassphrase?: string | undefined;
+  operatorSecretKey?: string | undefined;
   contractIds: ContractIds;
   /** True when at least one contract ID is configured (enables the on-chain read path). */
   contractsConfigured: boolean;
