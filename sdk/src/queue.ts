@@ -60,6 +60,9 @@ export class QueueClient {
       // exactOptionalPropertyTypes: omit rather than assign undefined
       ...(parsed.advanced_at ? { advancedAt: Number(parsed.advanced_at) } : {}),
     };
+    if (parsed.advanced_at) {
+      position.advancedAt = Number(parsed.advanced_at);
+    }
 
     return position;
   }
