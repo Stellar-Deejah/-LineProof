@@ -23,6 +23,14 @@ import {
   DEFAULT_LINEPROOF_CONFIG,
   SDKError,
   isNetworkPassphrase,
+} from "./types.js";
+import {
+  withRetry,
+  RetryResult,
+  RetryConfig,
+  DEFAULT_RETRY_CONFIG,
+  OnRetryFn,
+} from "./utils.js";
   validateContractId,
 } from './types.js';
 } from '@stellar/stellar-sdk';
@@ -38,8 +46,13 @@ export class LineProofClient {
   readonly networkPassphrase: string;
   private readonly sourceSecret: string | undefined;
   private readonly sourcePublic: string | undefined;
+
+  // Retry / timeout configuration (Issue #37)
   readonly timeoutMs: number;
   readonly maxRetries: number;
+  readonly baseDelayMs: number;
+  readonly maxDelayMs: number;
+  readonly jitterFactor: number;
 
   private factoryContractId?: string;
 
@@ -53,9 +66,13 @@ export class LineProofClient {
     }
     this.networkPassphrase = resolved.networkPassphrase;
     this.sourceSecret = resolved.privateKey;
+
+    // Retry / timeout config — now actually used (Issue #37)
     this.timeoutMs = resolved.timeoutMs ?? DEFAULT_LINEPROOF_CONFIG.timeoutMs;
-    this.maxRetries =
-      resolved.maxRetries ?? DEFAULT_LINEPROOF_CONFIG.maxRetries;
+    this.maxRetries = resolved.maxRetries ?? DEFAULT_LINEPROOF_CONFIG.maxRetries;
+    this.baseDelayMs = resolved.baseDelayMs ?? DEFAULT_RETRY_CONFIG.baseDelayMs;
+    this.maxDelayMs = resolved.maxDelayMs ?? DEFAULT_RETRY_CONFIG.maxDelayMs;
+    this.jitterFactor = resolved.jitterFactor ?? DEFAULT_RETRY_CONFIG.jitterFactor;
 
     if (resolved.privateKey) {
       this.sourcePublic =
@@ -76,6 +93,19 @@ export class LineProofClient {
     // SorobanRpc.Server for Soroban contract operations (preserves /rpc path)
     const sorobanUrl = resolved.sorobanRpcUrl || resolved.rpcServerUrl;
     this.sorobanServer = new SorobanRpc.Server(sorobanUrl);
+  }
+
+  /**
+   * Build the retry configuration object from this client's settings.
+   */
+  get retryConfig(): RetryConfig {
+    return {
+      maxRetries: this.maxRetries,
+      timeoutMs: this.timeoutMs,
+      baseDelayMs: this.baseDelayMs,
+      maxDelayMs: this.maxDelayMs,
+      jitterFactor: this.jitterFactor,
+    };
   }
 
   simulationSource(): Account {
@@ -179,8 +209,77 @@ export class LineProofClient {
     return this.networkPassphrase;
   }
 
-  /** Prepare, sign, and submit a Soroban invocation through Soroban RPC. */
+  /**
+   * Refresh the source account sequence from the RPC node.
+   * Called automatically by submitSorobanOperation on tx_bad_seq.
+   */
+  async refreshAccountSequence(): Promise<void> {
+    const keypair = this.requireKeypair();
+    const refreshed = await this.sorobanServer.getAccount(keypair.publicKey());
+    // The TransactionBuilder will fetch fresh sequence on next build,
+    // so this is mainly for logging / metrics.
+    return;
+  }
+
+  /**
+   * Prepare, sign, and submit a Soroban invocation through Soroban RPC.
+   *
+   * Now wraps the submission in withRetry() for automatic:
+   *   - timeout enforcement (timeoutMs)
+   *   - retry on transient failures (maxRetries)
+   *   - exponential backoff with jitter
+   *   - sequence re-fetch on tx_bad_seq
+   *
+   * @param operation  The Soroban operation to invoke
+   * @param onRetry    Optional observer for retry attempts
+   */
   async submitSorobanOperation(
+    operation: Parameters<TransactionBuilder["addOperation"]>[0],
+    onRetry?: OnRetryFn,
+  ): Promise<string> {
+    const keypair = this.requireKeypair();
+
+    const submitFn = async (signal: AbortSignal): Promise<string> => {
+      const source = await this.sorobanServer.getAccount(keypair.publicKey());
+      const transaction = new TransactionBuilder(source, {
+        fee: BASE_FEE,
+        networkPassphrase: this.networkPassphrase,
+      })
+        .addOperation(operation)
+        .setTimeout(30)
+        .build();
+
+      const prepared = await this.sorobanServer.prepareTransaction(transaction);
+      prepared.sign(keypair);
+
+      if (signal.aborted) {
+        throw new Error('Transaction submission aborted before send');
+      }
+
+      const result = await this.sorobanServer.sendTransaction(prepared);
+      if (result.status === "ERROR") {
+        throw new SDKError(
+          "TRANSACTION_FAILED",
+          "Soroban RPC rejected the transaction",
+        );
+      }
+      return result.hash;
+    };
+
+    const sequenceRefetch = async () => {
+      // Re-fetching the account updates the sequence number for the next
+      // TransactionBuilder call inside submitFn.
+      await this.sorobanServer.getAccount(keypair.publicKey());
+    };
+
+    const retryResult = await withRetry(
+      submitFn,
+      this.retryConfig,
+      sequenceRefetch,
+      onRetry,
+    );
+
+    return retryResult.result;
     operation: Parameters<TransactionBuilder['addOperation']>[0],
   ): Promise<string> {
     const keypair = this.requireKeypair();

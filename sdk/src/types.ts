@@ -18,6 +18,9 @@ export interface LineProofConfig {
   publicKey?: string;
   timeoutMs?: number;
   maxRetries?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  jitterFactor?: number;
   wasmDir?: string;
 }
 

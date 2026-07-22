@@ -1,6 +1,11 @@
 import {
-  TransactionBuilder,
   Operation,
+  xdr,
+  Address,
+} from "@stellar/stellar-sdk";
+import { LineProofClient } from "./client.js";
+import { SDKError } from "./types.js";
+import { OnRetryFn } from "./utils.js";
   BASE_FEE,
   Address,
   xdr,
@@ -29,15 +34,26 @@ export class IdentityClient {
     }
   }
 
+  /**
+   * Bind an identity to a queue. Retries transient failures automatically.
+   * @param onRetry  Optional observer for retry attempts
+   */
+  async bindIdentity(queueId: string, identity: string, onRetry?: OnRetryFn): Promise<string> {
+    if (!identity || typeof identity !== "string") {
+      throw new SDKError("INVALID_IDENTITY", "Identity public key is required");
   async bindIdentity(queueId: string, identity: string): Promise<string> {
     const targetId = queueId || this.contractId || '';
     validateContractId(targetId);
     if (!identity || typeof identity !== 'string') {
       throw new SDKError('INVALID_IDENTITY', 'Identity public key is required');
     }
-    const sourceKeypair = this.client.requireKeypair();
-    const source = await this.client.server.loadAccount(
-      sourceKeypair.publicKey(),
+    return this.client.submitSorobanOperation(
+      Operation.invokeContractFunction({
+        contract: queueId,
+        function: "bind",
+        args: [],
+      }),
+      onRetry,
     );
     const tx = new TransactionBuilder(source, {
       fee: BASE_FEE,

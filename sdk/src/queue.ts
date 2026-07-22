@@ -1,5 +1,12 @@
 import {
   Operation,
+  BASE_FEE,
+  xdr,
+  scValToNative,
+} from "@stellar/stellar-sdk";
+import { LineProofClient } from "./client.js";
+import { SDKError, Position } from "./types.js";
+import { OnRetryFn } from "./utils.js";
   xdr,
   scValToNative,
 } from '@stellar/stellar-sdk';
@@ -70,6 +77,7 @@ export class QueueClient {
       throw new SDKError('INVALID_RESPONSE', 'Failed to parse Position from contract');
     }
 
+    let status = "pending";
     // Soroban enums/symbols can sometimes be parsed as strings or objects.
     let status = 'pending';
     if (parsed.status) {
@@ -94,6 +102,11 @@ export class QueueClient {
     return position;
   }
 
+  /**
+   * Advance the queue. Retries transient failures automatically.
+   * @param onRetry  Optional observer for retry attempts
+   */
+  async advance(batchSize: number, onRetry?: OnRetryFn): Promise<number[]> {
   async advance(_batchSize: number): Promise<number[]> {
   async advance(batchSize: number): Promise<number[]> {
     const hash = await this.lineProof.submitSorobanOperation(
@@ -102,19 +115,25 @@ export class QueueClient {
         function: 'advance',
         args: [xdr.ScVal.scvU32(batchSize)],
       }),
+      onRetry,
     );
     const resultXdr = await this.lineProof.awaitTransaction(hash);
     const advancedIds = scValToNative(resultXdr) as number[];
     return advancedIds || [];
   }
 
-  async close(): Promise<string> {
+  /**
+   * Close the queue. Retries transient failures automatically.
+   * @param onRetry  Optional observer for retry attempts
+   */
+  async close(onRetry?: OnRetryFn): Promise<string> {
     return this.lineProof.submitSorobanOperation(
       Operation.invokeContractFunction({
         contract: this.queueContractId,
         function: 'close',
         args: [],
       }),
+      onRetry,
     );
   }
 }

@@ -2,6 +2,10 @@ import {
   Operation,
   Address,
   xdr,
+} from "@stellar/stellar-sdk";
+import { LineProofClient } from "./client.js";
+import { SDKError } from "./types.js";
+import { OnRetryFn } from "./utils.js";
   Address,
 } from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
@@ -27,6 +31,11 @@ export class EnrollmentClient {
     }
   }
 
+  /**
+   * Enroll in a queue. Retries transient failures automatically.
+   * @param onRetry  Optional observer for retry attempts
+   */
+  async enroll(queueId: string, _identity: string, onRetry?: OnRetryFn): Promise<string> {
   async enroll(queueId: string, _identity: string): Promise<string> {
     const targetId = queueId || this.contractId || '';
     validateContractId(targetId);
@@ -36,9 +45,15 @@ export class EnrollmentClient {
         function: 'enroll',
         args: [],
       }),
+      onRetry,
     );
   }
 
+  /**
+   * Cancel enrollment. Retries transient failures automatically.
+   * @param onRetry  Optional observer for retry attempts
+   */
+  async cancel(queueId: string, _identity: string, onRetry?: OnRetryFn): Promise<string> {
   async cancel(queueId: string, _identity: string): Promise<string> {
     const targetId = queueId || this.contractId || '';
     validateContractId(targetId);
@@ -48,6 +63,7 @@ export class EnrollmentClient {
         function: 'cancel',
         args: [],
       }),
+      onRetry,
     );
   }
 
