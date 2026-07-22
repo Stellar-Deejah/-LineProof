@@ -16,6 +16,3 @@ export { EnrollmentClient } from './enrollment.js';
 export { EscrowClient } from './escrow.js';
 export { IdentityClient } from './identity.js';
 export * from './utils.js';
-
-// Re-export commonly used Stellar SDK types for convenience
-export { Networks, Keypair } from '@stellar/stellar-sdk';

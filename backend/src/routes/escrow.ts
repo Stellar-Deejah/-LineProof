@@ -1,9 +1,10 @@
-import { Router, type IRouter, Response } from 'express';
+import { Router, type IRouter, Request, Response } from 'express';
 import { z } from 'zod';
 import { depositEscrow, releaseEscrow, refundEscrow, expireEscrow, getEscrow } from '../services/escrowService.js';
 import { recordEscrowDeposit, recordEscrowClosed } from '../metrics/registry.js';
 import { validateStellarAddress } from '../middleware/validateStellarAddress.js';
 import { StellarAddress } from '../schemas/stellar.js';
+import { NotFoundError, ValidationError } from '../errors/index.js';
 
 const router: IRouter = Router();
 
@@ -18,7 +19,6 @@ const DepositSchema = z.object({
 const EscrowActionSchema = z.object({
   escrowId: z.string().min(1).refine(
     (value) => {
-      // escrowId format: ${queueId}:${identity}
       const parts = value.split(':');
       if (parts.length !== 2) return false;
       const identity = parts[1];
@@ -30,10 +30,14 @@ const EscrowActionSchema = z.object({
   ),
 });
 
-router.post('/deposit', validateStellarAddress(['identity']), (req: any, res: Response, next) => {
-  const parsed = DepositSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
+type DepositInput = z.infer<typeof DepositSchema>;
+type EscrowActionInput = z.infer<typeof EscrowActionSchema>;
+
+router.post('/deposit', validateStellarAddress(['identity']), (req: Request<{}, {}, DepositInput>, res: Response, next): void => {
   try {
+    const parsed = DepositSchema.safeParse(req.body);
+    if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
+
     const record = depositEscrow(parsed.data);
     recordEscrowDeposit(record.asset);
     res.status(201).json(record);
@@ -42,12 +46,14 @@ router.post('/deposit', validateStellarAddress(['identity']), (req: any, res: Re
   }
 });
 
-router.post('/release', (req: any, res: Response, next) => {
-  const parsed = EscrowActionSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
+router.post('/release', (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
   try {
+    const parsed = EscrowActionSchema.safeParse(req.body);
+    if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
+
     const updated = releaseEscrow(parsed.data.escrowId);
-    if (!updated) return res.status(404).json({ message: 'Escrow not found' });
+    if (!updated) throw new NotFoundError('Escrow not found');
+
     recordEscrowClosed();
     res.json(updated);
   } catch (err) {
@@ -55,12 +61,14 @@ router.post('/release', (req: any, res: Response, next) => {
   }
 });
 
-router.post('/refund', (req: any, res: Response, next) => {
-  const parsed = EscrowActionSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
+router.post('/refund', (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
   try {
+    const parsed = EscrowActionSchema.safeParse(req.body);
+    if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
+
     const updated = refundEscrow(parsed.data.escrowId);
-    if (!updated) return res.status(404).json({ message: 'Escrow not found' });
+    if (!updated) throw new NotFoundError('Escrow not found');
+
     recordEscrowClosed();
     res.json(updated);
   } catch (err) {
@@ -68,12 +76,14 @@ router.post('/refund', (req: any, res: Response, next) => {
   }
 });
 
-router.post('/expire', (req: any, res: Response, next) => {
-  const parsed = EscrowActionSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
+router.post('/expire', (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
   try {
+    const parsed = EscrowActionSchema.safeParse(req.body);
+    if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
+
     const updated = expireEscrow(parsed.data.escrowId);
-    if (!updated) return res.status(404).json({ message: 'Escrow not found' });
+    if (!updated) throw new NotFoundError('Escrow not found');
+
     recordEscrowClosed();
     res.json(updated);
   } catch (err) {
@@ -81,10 +91,14 @@ router.post('/expire', (req: any, res: Response, next) => {
   }
 });
 
-router.get('/:id', (req, res: Response) => {
-  const record = getEscrow(req.params.id);
-  if (!record) return res.status(404).json({ message: 'Escrow not found' });
-  res.json(record);
+router.get('/:id', (req: Request<{ id: string }>, res: Response, next): void => {
+  try {
+    const record = getEscrow(req.params.id);
+    if (!record) throw new NotFoundError('Escrow not found');
+    res.json(record);
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

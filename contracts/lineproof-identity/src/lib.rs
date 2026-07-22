@@ -31,7 +31,6 @@ pub struct TransferAttempt {
     pub reverted: bool,
 }
 
-#[contract]
 pub trait Identity {
     fn bind(env: Env, identity: Address, queue_id: Symbol);
     fn unbind(env: Env, identity: Address, queue_id: Symbol);
@@ -42,8 +41,10 @@ pub trait Identity {
     fn get_record(env: Env, identity: Address) -> Option<IdentityRecord>;
     fn get_admin(env: Env) -> Option<Address>;
     fn initialize(env: Env, admin: Address);
+    fn set_transfer_allowed(env: Env, admin: Address, allowed: bool);
 }
 
+#[contract]
 pub struct IdentityImpl;
 
 #[contractimpl]
@@ -102,11 +103,34 @@ impl Identity for IdentityImpl {
         record.queues.iter().any(|q| q == &queue_id)
     }
 
-    fn can_transfer(_env: Env, from: Address, to: Address, _queue_id: Symbol) -> bool {
+    fn can_transfer(env: Env, from: Address, to: Address, queue_id: Symbol) -> bool {
         if from == to {
             return true;
         }
-        false
+
+        let record = Self::get_record_internal(&env, &from);
+        if matches!(record.status, BindingStatus::Revoked) {
+            return false;
+        }
+
+        let is_bound = record.queues.iter().any(|q| q == &queue_id);
+        if !is_bound {
+            return false;
+        }
+
+        let allowed_key = Symbol::new(&env, "transfer_allow");
+        env.storage().persistent().get(&allowed_key).unwrap_or(false)
+    }
+
+    fn set_transfer_allowed(env: Env, admin: Address, allowed: bool) {
+        admin.require_auth();
+        let stored_admin = Self::get_admin(env.clone()).unwrap_or_else(|| panic!("not initialized"));
+        if admin != stored_admin {
+            panic!("unauthorized");
+        }
+        let allowed_key = Symbol::new(&env, "transfer_allow");
+        env.storage().persistent().set(&allowed_key, &allowed);
+        env.storage().persistent().extend_ttl(&allowed_key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     fn record_transfer_attempt(env: Env, from: Address, to: Address, queue_id: Symbol) {
@@ -219,6 +243,11 @@ impl IdentityImpl {
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64) {
     env.events()
         .publish((Symbol::new(env, "lineproof.identity"), kind, queue_id));
+    env.events().publish((
+        Symbol::new(env, "lineproof_identity"),
+        kind,
+        queue_id,
+    ), ());
 }
 
 #[cfg(test)]

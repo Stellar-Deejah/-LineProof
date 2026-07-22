@@ -64,6 +64,37 @@ Advancement must preserve these invariants:
 - Position IDs are unique within a queue.
 - Events must be sufficient to reconstruct the state transition history.
 
+## Expiry Flow
+
+Once the queue is in `AdvancementActive` or `Closed` state, the admin may expire pending positions that were never advanced. This is useful when the enrollment close timestamp has passed and certain positions should no longer be eligible for service.
+
+### Functions
+
+- `expire_position(env, admin, position_id)` — expire a single pending position.
+- `expire_positions_batch(env, admin, position_ids)` — expire multiple pending positions in one call.
+
+Both functions:
+- Require admin authorization.
+- Panic if the queue is not in `AdvancementActive` or `Closed` state.
+- Panic if the position is not in `Pending` status.
+- Transition the position to `Expired` and emit an `Expired` event.
+
+### Effect on Advancement
+
+During FIFO advancement, `advance()` skips positions that are not `Pending` (including `Expired`, `Cancelled`, and already `Advanced` positions). Expiring stale positions allows the advancement cursor to make progress through only the eligible slots.
+
+### Effect on total_enrolled
+
+Expired positions **do not** decrement `total_enrolled()`. The `total_enrolled` counter tracks all position IDs ever assigned (based on the `next_id` counter) and is unaffected by status transitions. Operators should use `get_position()` to check individual position statuses rather than relying on `total_enrolled` as a count of active participants.
+
+### When to Expire
+
+Operators should call `expire_position` (or the batch variant) after the enrollment close deadline has passed and a position holder has not been serviced. There is currently no auto-expiry mechanism tied to the `enrollment_close` timestamp; the decision to expire is always an explicit admin action. A future iteration may add automatic time-based expiry, at which point expired positions could be distinguished from active pending positions automatically.
+
+### Audit Trail
+
+Each expired position emits a `lineproof_queue` event with kind `Expired` and the `position_id`, providing an on-chain record that can be used to reconstruct the queue's final state.
+
 ## Failure Handling
 
 If an advancement transaction fails, no partial state should be considered final unless the contract has explicitly emitted the relevant events and committed storage updates. Integrators should treat transaction success, storage state, and emitted events as the source of truth.

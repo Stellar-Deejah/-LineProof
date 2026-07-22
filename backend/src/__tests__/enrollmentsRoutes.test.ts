@@ -16,6 +16,9 @@ vi.mock('../metrics/registry.js', () => ({
   recordEnrollment: vi.fn(),
 }));
 
+const VALID_KEY = 'G' + 'A'.repeat(55);
+const INVALID_S_KEY = 'S' + 'A'.repeat(55);
+
 describe('Enrollments Routes - Stellar Address Validation', () => {
   let app: express.Application;
 
@@ -32,7 +35,7 @@ describe('Enrollments Routes - Stellar Address Validation', () => {
         .post('/api/enrollments/enroll')
         .send({
           queueId: 'test-queue',
-          identity: 'SABC1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789', // S-prefixed (secret key)
+          identity: INVALID_S_KEY,
         });
 
       expect(response.status).toBe(400);
@@ -74,6 +77,7 @@ describe('Enrollments Routes - Stellar Address Validation', () => {
       vi.mocked(enrollIdentity).mockReturnValue({
         queueId: 'test-queue',
         identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        identity: VALID_KEY,
         enrolledAt: new Date().toISOString(),
         conflict: false,
         cancelled: false,
@@ -84,6 +88,7 @@ describe('Enrollments Routes - Stellar Address Validation', () => {
         .send({
           queueId: 'test-queue',
           identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          identity: VALID_KEY,
         });
 
       expect(response.status).toBe(201);
@@ -96,7 +101,7 @@ describe('Enrollments Routes - Stellar Address Validation', () => {
         .post('/api/enrollments/cancel')
         .send({
           queueId: 'test-queue',
-          identity: 'SABC1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789',
+          identity: INVALID_S_KEY,
         });
 
       expect(response.status).toBe(400);
@@ -128,6 +133,7 @@ describe('Enrollments Routes - Stellar Address Validation', () => {
         .send({
           queueId: 'test-queue',
           identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          identity: VALID_KEY,
         });
 
       expect(response.status).toBe(200);

@@ -151,3 +151,87 @@ fn test_deploy_rejects_duplicate_slug() {
         soroban_sdk::BytesN::new(&env, &[4u8; 32]),
     );
 }
+
+#[test]
+#[should_panic(expected = "version must increase")]
+fn test_upgrade_rejects_downgrade() {
+    let (env, admin) = setup();
+    init(&env, &admin);
+    let slug = Symbol::new(&env, "downgrade");
+    QueueFactoryImpl::register_queue(
+        env.clone(),
+        admin.clone(),
+        slug.clone(),
+        soroban_sdk::BytesN::new(&env, &[5u8; 32]),
+        2,
+    );
+    QueueFactoryImpl::upgrade_queue(env.clone(), admin, slug, 1, soroban_sdk::BytesN::new(&env, &[6u8; 32]));
+}
+
+#[test]
+#[should_panic(expected = "WASM hash not approved")]
+fn test_deploy_rejects_unapproved_hash() {
+    let (env, admin) = setup();
+    init(&env, &admin);
+    QueueFactoryImpl::register_approved_hash(env.clone(), admin, 1, soroban_sdk::BytesN::new(&env, &[7u8; 32]));
+    QueueFactoryImpl::deploy_queue(
+        env.clone(),
+        Address::new(&env, &[2u8; 7]),
+        Symbol::new(&env, "unapproved"),
+        Symbol::new(&env, "U"),
+        1,
+        soroban_sdk::BytesN::new(&env, &[8u8; 32]),
+    );
+}
+
+#[test]
+#[should_panic(expected = "WASM hash not approved")]
+fn test_upgrade_rejects_unapproved_hash() {
+    let (env, admin) = setup();
+    init(&env, &admin);
+    QueueFactoryImpl::set_config(env.clone(), admin.clone(), 1, 2);
+    QueueFactoryImpl::register_approved_hash(
+        env.clone(),
+        admin.clone(),
+        2,
+        soroban_sdk::BytesN::new(&env, &[7u8; 32]),
+    );
+    let slug = Symbol::new(&env, "unapproved");
+    QueueFactoryImpl::register_queue(
+        env.clone(),
+        admin.clone(),
+        slug.clone(),
+        soroban_sdk::BytesN::new(&env, &[5u8; 32]),
+        1,
+    );
+    QueueFactoryImpl::upgrade_queue(env.clone(), admin, slug, 2, soroban_sdk::BytesN::new(&env, &[8u8; 32]));
+}
+
+#[test]
+fn test_destroy_removes_queue_and_allows_slug_reuse() {
+    let (env, admin) = setup();
+    init(&env, &admin);
+    let slug = Symbol::new(&env, "reusable");
+    QueueFactoryImpl::register_queue(
+        env.clone(),
+        admin.clone(),
+        slug.clone(),
+        soroban_sdk::BytesN::new(&env, &[5u8; 32]),
+        1,
+    );
+
+    QueueFactoryImpl::destroy_queue(env.clone(), admin.clone(), slug.clone());
+    assert!(QueueFactoryImpl::get_queue(env.clone(), slug.clone()).is_none());
+    assert_eq!(QueueFactoryImpl::queue_count(env.clone()), 0);
+    assert_eq!(QueueFactoryImpl::list_queues(env.clone()).len(), 0);
+
+    QueueFactoryImpl::register_queue(
+        env.clone(),
+        admin,
+        slug.clone(),
+        soroban_sdk::BytesN::new(&env, &[6u8; 32]),
+        1,
+    );
+    assert!(QueueFactoryImpl::get_queue(env.clone(), slug).is_some());
+    assert_eq!(QueueFactoryImpl::queue_count(env), 1);
+}

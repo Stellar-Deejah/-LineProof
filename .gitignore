@@ -13,3 +13,4 @@ target
 .idea
 coverage
 .nyc_output
+test_snapshots/
