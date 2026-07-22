@@ -2,8 +2,6 @@ import { QueueStatus, transitionQueueStatus } from '../schemas/queueStatus.js';
 export { QueueStatus };
 import { defaultMemoryAdapter } from '../storage/index.js';
 
-export type QueueStatus = 'Draft' | 'Open' | 'AdvancementActive' | 'Closed';
-
 export type Queue = {
   id: string;
   name: string;

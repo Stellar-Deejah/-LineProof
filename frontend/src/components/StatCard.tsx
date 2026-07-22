@@ -12,9 +12,11 @@ export default function StatCard({ label, value, subtext, icon, className = '' }
   return (
     <div className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
       {icon && <div className="mb-3 text-slate-400">{icon}</div>}
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
-      {subtext && <p className="mt-1 text-xs text-slate-500">{subtext}</p>}
+      <dl>
+        <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
+        <dd className="mt-1 text-2xl font-bold text-slate-900">{value}</dd>
+        {subtext && <dd className="mt-1 text-xs text-slate-500">{subtext}</dd>}
+      </dl>
     </div>
   );
 }

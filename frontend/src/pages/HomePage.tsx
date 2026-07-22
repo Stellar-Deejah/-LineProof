@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, Clock, Users, ArrowRight } from 'lucide-react';
 import { useQueues } from '../hooks/useQueues';
@@ -74,7 +75,7 @@ export default function HomePage() {
   );
 }
 
-function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+function FeatureCard({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">{icon}</div>

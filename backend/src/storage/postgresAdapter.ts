@@ -9,6 +9,11 @@ import type { StorageAdapter } from './adapter.js';
  * up pulls in a driver (`node-postgres`/`pg` or `drizzle-orm`) and a running
  * database, which belong to the implementation PR rather than this scaffold.
  *
+ * **ORM Choice & Schema Details:**
+ * We recommend `drizzle-orm` for future implementations due to its edge compatibility
+ * and type safety without the heavy runtime of Prisma. The schema (defined in `0001_init.sql`)
+ * uses a simple key-value structure with `namespace` and `key` as a composite primary key.
+ *
  * Selecting Postgres (`DATABASE_URL` set) therefore throws a clear error today,
  * and the storage factory defaults to `MemoryAdapter` so tests and local dev
  * never touch this path. See `docs/backend-persistence.md` for the rollout plan

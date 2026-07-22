@@ -4,6 +4,7 @@ import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import CopyButton from '../components/CopyButton';
 import AlertBanner from '../components/AlertBanner';
+import LiveRegion from '../components/LiveRegion';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
 
@@ -14,6 +15,9 @@ export type PositionRecord = {
   enrolledAt: string;
   cancelled: boolean;
   conflict: boolean;
+  escrowStatus?: string;
+  positionId?: number;
+  advanced?: boolean;
 };
 
 export default function DashboardPage() {
@@ -33,7 +37,21 @@ export default function DashboardPage() {
       if (res.status === 404) { setRecords([]); return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as PositionRecord[];
-      setRecords(Array.isArray(data) ? data : []);
+      if (Array.isArray(data)) {
+        const enriched = await Promise.all(data.map(async (r) => {
+          try {
+            const eRes = await fetch(`${API_BASE}/escrow/${encodeURIComponent(`${r.queueId}:${r.identity}`)}`);
+            if (eRes.ok) {
+              const eData = await eRes.json();
+              r.escrowStatus = eData.status;
+            }
+          } catch { /* ignore */ }
+          return r;
+        }));
+        setRecords(enriched);
+      } else {
+        setRecords([]);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Network error');
     } finally {
@@ -51,9 +69,12 @@ export default function DashboardPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <label className="block text-sm font-medium text-slate-900">Stellar public key</label>
+        <label htmlFor="dashboard-public-key" className="block text-sm font-medium text-slate-900">
+          Stellar public key
+        </label>
         <div className="mt-2 flex gap-2">
           <input
+            id="dashboard-public-key"
             value={publicKey}
             onChange={(e) => setPublicKey(e.currentTarget.value)}
             onKeyDown={(e) => e.key === 'Enter' && lookup()}
@@ -73,6 +94,9 @@ export default function DashboardPage() {
           <div className="mt-4">
             <AlertBanner variant="error" message={error} />
           </div>
+          <LiveRegion className="mt-2 text-sm text-red-600">
+            {error}
+          </LiveRegion>
         )}
       </div>
 
@@ -84,16 +108,29 @@ export default function DashboardPage() {
               {active.map((record, i) => (
                 <div key={i} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-base font-semibold text-slate-900">{record.queueId}</h3>
+                    <div className="flex flex-col gap-1">
+                      <h3 className="text-base font-semibold text-slate-900">{record.queueId}</h3>
+                      {record.escrowStatus && (
+                        <span className="w-max inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-800">
+                          Escrow: {record.escrowStatus}
+                        </span>
+                      )}
+                    </div>
                     <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-600" aria-label="Identity bound" />
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Enrolled {new Date(record.enrolledAt).toLocaleString()}
-                  </p>
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className="truncate font-mono text-xs text-slate-500">{record.identity}</span>
-                    <CopyButton text={record.identity} label="Copy" />
-                  </div>
+                  <dl>
+                    <div className="mt-1">
+                      <dt className="sr-only">Enrolled at</dt>
+                      <dd className="text-xs text-slate-500">
+                        Enrolled {new Date(record.enrolledAt).toLocaleString()}
+                      </dd>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <dt className="sr-only">Identity</dt>
+                      <dd className="truncate font-mono text-xs text-slate-500">{record.identity}</dd>
+                      <CopyButton text={record.identity} label="Copy" />
+                    </div>
+                  </dl>
                 </div>
               ))}
             </div>

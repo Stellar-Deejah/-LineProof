@@ -2,6 +2,7 @@ import { Networks, Keypair, StrKey } from '@stellar/stellar-sdk';
 
 export interface LineProofConfig {
   rpcServerUrl: string;
+  sorobanRpcUrl?: string;
   networkPassphrase: string;
   privateKey?: string;
   publicKey?: string;
@@ -120,7 +121,9 @@ export class SDKError extends Error {
 
 export const DEFAULT_LINEPROOF_CONFIG = {
   rpcServerUrl: 'http://localhost:8000/soroban/rpc',
-  networkPassphrase: Networks.TESTNET,
+  // Local enum, not Networks.TESTNET: a top-level property access on the
+  // @stellar/stellar-sdk import would defeat tree-shaking for consumers.
+  networkPassphrase: NetworkPassphrase.TESTNET as string,
   timeoutMs: 30_000,
   maxRetries: 3,
 };

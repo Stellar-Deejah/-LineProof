@@ -1,6 +1,6 @@
 use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
 
-use crate::{Position, PositionStatus, QueueConfig, QueueImpl, QueueStatus};
+use crate::{AdvancementRule, Position, PositionStatus, QueueConfig, QueueImpl, QueueStatus};
 
 fn setup() -> (Env, Address) {
     let env = Env::default();
@@ -18,6 +18,7 @@ fn make_config(env: &Env, admin: &Address) -> QueueConfig {
         enrollment_close: 2_000,
         status: QueueStatus::Draft,
         version: 1,
+        advancement_rule: AdvancementRule::Fifo,
     }
 }
 
@@ -68,6 +69,7 @@ fn test_advance_updates_positions() {
         identity: user1.clone(),
         status: PositionStatus::Pending,
         advanced_at: None,
+        priority_weight: None,
     };
     let pos2 = Position {
         position_id: 2,
@@ -75,6 +77,7 @@ fn test_advance_updates_positions() {
         identity: user2,
         status: PositionStatus::Pending,
         advanced_at: None,
+        priority_weight: None,
     };
 
     env.storage().persistent().set(&(Symbol::new(&env, "pos"), 1u32), &pos1);
@@ -223,6 +226,7 @@ fn test_advance_stays_in_advancement_active() {
         identity: user,
         status: PositionStatus::Pending,
         advanced_at: None,
+        priority_weight: None,
     };
     env.storage().persistent().set(&(Symbol::new(&env, "pos"), 1u32), &pos);
     env.storage().persistent().set(&Symbol::new(&env, "idx"), &0u32);
@@ -246,6 +250,7 @@ fn test_get_position_by_id() {
         identity: user,
         status: PositionStatus::Pending,
         advanced_at: None,
+        priority_weight: None,
     };
     env.storage().persistent().set(&(Symbol::new(&env, "pos"), 1u32), &pos);
 

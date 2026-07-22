@@ -1,9 +1,9 @@
 # Advancement Rules: VRF and PriorityTier
 
-> **NOT YET IMPLEMENTED.** `AdvancementRule::VERIFIABLE_RANDOMNESS` and
-> `AdvancementRule::PRIORITY_TIER` are declared in the type model but are **dead
-> enum variants** in the deployed contract. Every queue — regardless of the rule
-> selected at deployment — currently advances **FIFO by position ID**. This
+> **NOT YET IMPLEMENTED.** `AdvancementRule::VerifiableRandomness` and
+> `AdvancementRule::PriorityTier` are declared in the type model but are **unimplemented
+> enum variants** in the deployed contract. Using them will now **panic explicitly**. Every queue 
+> using the FIFO rule advances **FIFO by position ID**. This
 > document describes the current behaviour and the planned designs so operators
 > can assess trust before selecting a non-FIFO rule. Tracked by upstream issue
 > **#17** (referenced as "#14" in issue #35 — see the discrepancy note in
@@ -22,9 +22,8 @@ batch at a time:
   entries, then persists the new cursor. It requires status
   `EnrollmentClosed` and transitions the queue to `AdvancementActive`.
 
-The `advancementRule` field is recorded as queue metadata but is **not read** by
-`advance()`. Selecting `Priority` or `VerifiableRandomness` does not change the
-ordering: the contract still advances `1, 2, 3, …`.
+The `advancement_rule` field is recorded as queue metadata and is **read** by
+`advance()`. Selecting `PriorityTier` or `VerifiableRandomness` will cause `advance()` to panic explicitly.
 
 ### Why FIFO-by-position-ID may differ from arrival-order FIFO
 
@@ -116,12 +115,12 @@ an external dependency, oracle trust assumptions, and per-draw cost.
 
 | Rule | Enum variant | Status | Effective behaviour today |
 |------|--------------|--------|---------------------------|
-| FIFO | `FIRST_IN_FIRST_OUT` | Implemented | Advance by ascending position ID |
-| Priority tier | `PRIORITY_TIER` | Not implemented (dead variant) | Falls back to FIFO |
-| Verifiable randomness | `VERIFIABLE_RANDOMNESS` | Not implemented (dead variant) | Falls back to FIFO |
+| FIFO | `Fifo` | Implemented | Advance by ascending position ID |
+| Priority tier | `PriorityTier` | Not implemented | Explicit panic (`"priority_tier_not_implemented"`) |
+| Verifiable randomness | `VerifiableRandomness` | Not implemented | Explicit panic (`"vrf_not_implemented"`) |
 
 Until the rows above change, **do not deploy a queue relying on Priority or VRF
-semantics** — the ordering guarantee will silently be FIFO.
+semantics** — the `advance()` call will panic.
 
 ## 5. Maintainer review
 

@@ -36,11 +36,50 @@ fn test_is_bound_returns_false_before_bind() {
 }
 
 #[test]
-fn test_can_transfer_returns_false_for_different_identities() {
-    let (env, user) = setup();
-    let other = Address::new(&env, &[2; 7]);
-    let queue_id = Symbol::new(&env, "drop");
+fn test_can_transfer_returns_false_for_revoked_identity() {
+    let (env, admin) = setup();
+    IdentityImpl::initialize(env.clone(), admin.clone());
+    let user = Address::new(&env, &[10u8; 7]);
+    let other = Address::new(&env, &[11u8; 7]);
+    let queue_id = Symbol::new(&env, "q-transfer");
     IdentityImpl::bind(env.clone(), user.clone(), queue_id.clone());
+    IdentityImpl::set_transfer_allowed(env.clone(), admin.clone(), true);
+    IdentityImpl::revoke(env.clone(), admin, user.clone());
+    assert!(!IdentityImpl::can_transfer(env, user, other, queue_id));
+}
+
+#[test]
+fn test_can_transfer_returns_false_when_unbound() {
+    let (env, admin) = setup();
+    IdentityImpl::initialize(env.clone(), admin.clone());
+    let user = Address::new(&env, &[12u8; 7]);
+    let other = Address::new(&env, &[13u8; 7]);
+    let queue_id = Symbol::new(&env, "q-unbound");
+    IdentityImpl::set_transfer_allowed(env.clone(), admin.clone(), true);
+    assert!(!IdentityImpl::can_transfer(env, user, other, queue_id));
+}
+
+#[test]
+fn test_can_transfer_returns_true_when_allowed_and_bound() {
+    let (env, admin) = setup();
+    IdentityImpl::initialize(env.clone(), admin.clone());
+    let user = Address::new(&env, &[14u8; 7]);
+    let other = Address::new(&env, &[15u8; 7]);
+    let queue_id = Symbol::new(&env, "q-allowed");
+    IdentityImpl::bind(env.clone(), user.clone(), queue_id.clone());
+    IdentityImpl::set_transfer_allowed(env.clone(), admin.clone(), true);
+    assert!(IdentityImpl::can_transfer(env, user, other, queue_id));
+}
+
+#[test]
+fn test_can_transfer_returns_false_when_not_allowed_but_bound() {
+    let (env, admin) = setup();
+    IdentityImpl::initialize(env.clone(), admin.clone());
+    let user = Address::new(&env, &[16u8; 7]);
+    let other = Address::new(&env, &[17u8; 7]);
+    let queue_id = Symbol::new(&env, "q-not-allowed");
+    IdentityImpl::bind(env.clone(), user.clone(), queue_id.clone());
+    // Not setting transfer_allowed to true (default is false)
     assert!(!IdentityImpl::can_transfer(env, user, other, queue_id));
 }
 

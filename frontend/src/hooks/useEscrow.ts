@@ -53,5 +53,43 @@ export function useEscrow() {
     } finally { setLoading(false); }
   };
 
-  return { deposit, lookup, loading, error, record };
+  const lookupForQueue = async (queueId: string, identity: string): Promise<EscrowRecord | null> => {
+    return lookup(`${queueId}:${identity}`);
+  };
+
+  const release = async (escrowId: string): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/escrow/release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ escrowId }),
+      });
+      if (!res.ok) { setError(`HTTP ${res.status}`); return false; }
+      return true;
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Network error');
+      return false;
+    } finally { setLoading(false); }
+  };
+
+  const refund = async (escrowId: string): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/escrow/refund`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ escrowId }),
+      });
+      if (!res.ok) { setError(`HTTP ${res.status}`); return false; }
+      return true;
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Network error');
+      return false;
+    } finally { setLoading(false); }
+  };
+
+  return { deposit, lookup, lookupForQueue, release, refund, loading, error, record };
 }
