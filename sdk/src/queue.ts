@@ -32,6 +32,29 @@ export class QueueClient {
       );
     }
 
+    const source = this.lineProof.simulationSource();
+    const tx = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: this.lineProof.networkPassphrase,
+    })
+      .addOperation(
+        Operation.invokeContractFunction({
+          contract: this.queueContractId,
+          function: 'get_position',
+          args: [nativeToScVal(positionId, { type: 'u64' })],
+        }),
+      )
+      .setTimeout(30)
+      .build();
+
+    const simulateResult = await this.lineProof.sorobanServer.simulateTransaction(tx);
+    if (!SorobanRpc.Api.isSimulationSuccess(simulateResult) || !simulateResult.result) {
+      throw new SDKError('SIMULATION_FAILED', 'Contract simulation returned no result');
+    }
+
+    const resultXdr = simulateResult.result.retval;
+    if (resultXdr.switch() !== xdr.ScValType.scvVec()) {
+      throw new SDKError('INVALID_RESPONSE', 'Expected Vec response from contract');
     const resultXdr = await this.lineProof.simulateContractCall(
       this.queueContractId,
       'get_position',
@@ -71,6 +94,7 @@ export class QueueClient {
     return position;
   }
 
+  async advance(_batchSize: number): Promise<number[]> {
   async advance(batchSize: number): Promise<number[]> {
     const hash = await this.lineProof.submitSorobanOperation(
       Operation.invokeContractFunction({

@@ -77,8 +77,8 @@ pub trait Queue {
 pub struct QueueImpl;
 
 #[contractimpl]
-impl Queue for QueueImpl {
-    fn initialize(env: Env, admin: Address, config: QueueConfig) {
+impl QueueImpl {
+    pub fn initialize(env: Env, admin: Address, config: QueueConfig) {
         admin.require_auth();
         let key_config = Symbol::new(&env, "config");
         env.storage().persistent().set(&key_config, &config);
@@ -88,12 +88,16 @@ impl Queue for QueueImpl {
         let key_idx = Symbol::new(&env, "idx");
         env.storage().persistent().set(&key_idx, &0u32);
         env.storage().persistent().extend_ttl(&key_idx, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "Initialized"), 0, &admin, 0);
     }
 
-    fn open_enrollment(env: Env, admin: Address) {
+    pub fn open_enrollment(env: Env, admin: Address) {
         admin.require_auth();
         let mut config = Self::get_config_internal(&env);
+        if matches!(config.status, QueueStatus::Closed) {
+            panic!("queue is closed");
+        }
         if matches!(config.status, QueueStatus::EnrollmentOpen) {
             panic!("already open");
         }
@@ -110,9 +114,12 @@ impl Queue for QueueImpl {
         );
     }
 
-    fn close_enrollment(env: Env, admin: Address) {
+    pub fn close_enrollment(env: Env, admin: Address) {
         admin.require_auth();
         let mut config = Self::get_config_internal(&env);
+        if matches!(config.status, QueueStatus::Closed) {
+            panic!("queue is closed");
+        }
         config.status = QueueStatus::EnrollmentClosed;
         let key_config = Symbol::new(&env, "config");
         env.storage().persistent().set(&key_config, &config);
@@ -126,7 +133,7 @@ impl Queue for QueueImpl {
         );
     }
 
-    fn enroll_position(env: Env, identity: Address) -> u32 {
+    pub fn enroll_position(env: Env, identity: Address) -> u32 {
         identity.require_auth();
         let config = Self::get_config_internal(&env);
         if !matches!(config.status, QueueStatus::EnrollmentOpen) {
@@ -160,7 +167,7 @@ impl Queue for QueueImpl {
         next_id
     }
 
-    fn cancel_position(env: Env, identity: Address, position_id: u32) {
+    pub fn cancel_position(env: Env, identity: Address, position_id: u32) {
         identity.require_auth();
         let mut pos = Self::load_position(&env, position_id);
         if pos.identity != identity {
@@ -182,9 +189,12 @@ impl Queue for QueueImpl {
         );
     }
 
-    fn advance(env: Env, admin: Address, batch_size: u32) -> Vec<u32> {
+    pub fn advance(env: Env, admin: Address, batch_size: u32) -> Vec<u32> {
         admin.require_auth();
         let mut config = Self::get_config_internal(&env);
+        if matches!(config.status, QueueStatus::Closed) {
+            panic!("queue is closed");
+        }
         if !matches!(config.status, QueueStatus::EnrollmentClosed) {
             panic!("enrollment must be closed before advancing");
         }
@@ -240,22 +250,27 @@ impl Queue for QueueImpl {
         }
     }
 
-    fn get_position(env: Env, position_id: u32) -> Option<Position> {
+    pub fn get_position(env: Env, position_id: u32) -> Option<Position> {
         if position_id == 0 {
             return None;
         }
-        Some(Self::load_position(&env, position_id))
+        let key = Self::position_key(&env, position_id);
+        let pos: Option<Position> = env.storage().persistent().get(&key);
+        if let Some(ref _pos) = pos {
+            env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        }
+        pos
     }
 
-    fn get_config(env: Env) -> QueueConfig {
+    pub fn get_config(env: Env) -> QueueConfig {
         Self::get_config_internal(&env)
     }
 
-    fn current_position_index(env: Env) -> u32 {
+    pub fn current_position_index(env: Env) -> u32 {
         env.storage().persistent().get(&Symbol::new(&env, "idx")).unwrap_or(0)
     }
 
-    fn total_enrolled(env: Env) -> u32 {
+    pub fn total_enrolled(env: Env) -> u32 {
         let next_id: u32 = env
             .storage()
             .persistent()
@@ -268,7 +283,7 @@ impl Queue for QueueImpl {
         }
     }
 
-    fn close(env: Env, admin: Address) {
+    pub fn close(env: Env, admin: Address) {
         admin.require_auth();
         let mut config = Self::get_config_internal(&env);
         config.status = QueueStatus::Closed;

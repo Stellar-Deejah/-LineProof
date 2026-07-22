@@ -4,6 +4,10 @@ import {
   SorobanRpc,
   TransactionBuilder,
   BASE_FEE,
+} from '@stellar/stellar-sdk';
+
+import { LineProofConfig, DEFAULT_LINEPROOF_CONFIG, SDKError, isNetworkPassphrase } from './types.js';
+
   xdr,
   Address,
   Operation,
