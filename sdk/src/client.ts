@@ -3,25 +3,17 @@ import {
   Keypair,
   Horizon,
   SorobanRpc,
-} from '@stellar/stellar-sdk';
-
-// Neutral all-zeros account used as the source for simulation-only (read)
-// transactions, where no signature and no real sequence number are needed.
-const SIMULATION_ACCOUNT_ID = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
-import { LineProofConfig, DEFAULT_LINEPROOF_CONFIG, SDKError, isNetworkPassphrase } from './types.js';
   TransactionBuilder,
   BASE_FEE,
   xdr,
   Address,
-  Account,
   Operation,
-} from "@stellar/stellar-sdk";
-import {
-  LineProofConfig,
-  DEFAULT_LINEPROOF_CONFIG,
-  SDKError,
-  isNetworkPassphrase,
-} from "./types.js";
+} from '@stellar/stellar-sdk';
+import { LineProofConfig, DEFAULT_LINEPROOF_CONFIG, SDKError, isNetworkPassphrase } from './types.js';
+
+// Neutral all-zeros account used as the source for simulation-only (read)
+// transactions, where no signature and no real sequence number are needed.
+const SIMULATION_ACCOUNT_ID = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
 
 export class LineProofClient {
   readonly server: Horizon.Server;
@@ -181,7 +173,7 @@ export class LineProofClient {
     if (!response.entries || response.entries.length === 0) {
       return undefined;
     }
-    const entryXdr = response.entries[0].xdr;
+    const entryXdr = (response.entries[0] as any).xdr;
     const ledgerEntryData = xdr.LedgerEntryData.fromXDR(entryXdr, "base64");
     return ledgerEntryData.contractData().val();
   }
@@ -207,9 +199,6 @@ export class LineProofClient {
   static readOnly(
     config: Omit<LineProofConfig, "privateKey">,
   ): LineProofClient {
-    return new LineProofClient({
-      ...config,
-      privateKey: undefined,
-    });
+    return new LineProofClient(config as LineProofConfig);
   }
 }
