@@ -14,13 +14,14 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
         submitTransaction: vi.fn(async () => ({ hash: 'mockhash' })),
       })),
     },
-    Keypair: {
-      ...actual.Keypair,
+    // Object spread drops a class's non-enumerable statics (e.g. fromSecret);
+    // inherit them through the prototype chain instead.
+    Keypair: Object.assign(Object.create(actual.Keypair), {
       random: vi.fn(() => ({
         publicKey: () => 'GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBWHF',
         secret: () => 'SBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
       })),
-    },
+    }),
     Networks: {
       TESTNET: 'Test SDF Network ; September 2015',
       PUBLIC: 'Public Global Stellar Network ; September 2015',

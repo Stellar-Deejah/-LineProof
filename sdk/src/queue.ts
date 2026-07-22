@@ -57,6 +57,8 @@ export class QueueClient {
       enrolledAt: Number(parsed.enrolled_at || 0),
       identity: parsed.identity || "",
       status: status as any,
+      // exactOptionalPropertyTypes: omit rather than assign undefined
+      ...(parsed.advanced_at ? { advancedAt: Number(parsed.advanced_at) } : {}),
     };
     if (parsed.advanced_at) {
       position.advancedAt = Number(parsed.advanced_at);

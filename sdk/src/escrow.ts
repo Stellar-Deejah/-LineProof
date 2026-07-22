@@ -1,4 +1,7 @@
-import { Operation, xdr } from '@stellar/stellar-sdk';
+import {
+  Operation,
+  xdr,
+} from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
 import { SDKError } from './types.js';
 

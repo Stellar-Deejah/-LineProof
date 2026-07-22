@@ -1,4 +1,5 @@
 import { defaultMemoryAdapter } from '../storage/index.js';
+import { MemoryAdapter } from '../storage/memoryAdapter.js';
 
 export type EscrowStatus = 'Active' | 'Released' | 'Refunded' | 'Expired';
 
@@ -14,14 +15,19 @@ export type EscrowRecord = {
   releasedAt?: string;
 };
 
-// Escrow records live in the shared storage adapter (issue #4), namespace
-// `escrow`, keyed by `${queueId}:${identity}`.
-const store = defaultMemoryAdapter;
+// Escrow records live in a storage adapter (issue #4), namespace `escrow`,
+// keyed by `${queueId}:${identity}`.
+//
+// The service is built by a factory that closes over its store (issue #91), so
+// a test can hand it a fresh adapter and get complete isolation. The module
+// still exports a singleton bound to the shared adapter, so route handlers and
+// existing callers are unaffected.
 const NS = 'escrow';
 
 const HOLD_DAYS_DEFAULT = 30;
 
-export const depositEscrow = (payload: {
+export function createEscrowService(store: MemoryAdapter = new MemoryAdapter()) {
+const depositEscrow = (payload: {
   queueId: string;
   identity: string;
   amount: number;
@@ -51,7 +57,7 @@ export const depositEscrow = (payload: {
   return record;
 };
 
-export const releaseEscrow = (escrowId: string): EscrowRecord | undefined => {
+const releaseEscrow = (escrowId: string): EscrowRecord | undefined => {
   const record = store.get<EscrowRecord>(NS, escrowId);
   if (!record) return undefined;
   if (record.status !== 'Active') {
@@ -65,7 +71,7 @@ export const releaseEscrow = (escrowId: string): EscrowRecord | undefined => {
   return record;
 };
 
-export const refundEscrow = (escrowId: string): EscrowRecord | undefined => {
+const refundEscrow = (escrowId: string): EscrowRecord | undefined => {
   const record = store.get<EscrowRecord>(NS, escrowId);
   if (!record) return undefined;
   if (record.status !== 'Active') {
@@ -79,7 +85,7 @@ export const refundEscrow = (escrowId: string): EscrowRecord | undefined => {
   return record;
 };
 
-export const expireEscrow = (escrowId: string): EscrowRecord | undefined => {
+const expireEscrow = (escrowId: string): EscrowRecord | undefined => {
   const record = store.get<EscrowRecord>(NS, escrowId);
   if (!record) return undefined;
   if (record.status !== 'Active') {
@@ -99,6 +105,18 @@ export const expireEscrow = (escrowId: string): EscrowRecord | undefined => {
   return record;
 };
 
-export const getEscrow = (escrowId: string): EscrowRecord | undefined => {
+const getEscrow = (escrowId: string): EscrowRecord | undefined => {
   return store.get<EscrowRecord>(NS, escrowId);
 };
+
+  return { depositEscrow, releaseEscrow, refundEscrow, expireEscrow, getEscrow };
+}
+
+/** Production singleton bound to the shared in-process adapter. */
+export const escrowService = createEscrowService(defaultMemoryAdapter);
+
+export const depositEscrow = escrowService.depositEscrow;
+export const releaseEscrow = escrowService.releaseEscrow;
+export const refundEscrow = escrowService.refundEscrow;
+export const expireEscrow = escrowService.expireEscrow;
+export const getEscrow = escrowService.getEscrow;
