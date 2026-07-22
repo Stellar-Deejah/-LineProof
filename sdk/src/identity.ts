@@ -2,29 +2,36 @@ import {
   TransactionBuilder,
   Operation,
   BASE_FEE,
-  SorobanRpc,
+  Address,
   xdr,
 } from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
-import { SDKError } from './types.js';
-  SorobanDataBuilder,
-  Account,
-  SorobanRpc,
-  Address,
-} from "@stellar/stellar-sdk";
-import { LineProofClient } from "./client.js";
-import { SDKError } from "./types.js";
+import { SDKError, validateContractId } from './types.js';
+
+export type IdentityClientOptions = {
+  contractId?: string;
+};
 
 export class IdentityClient {
   private readonly client: LineProofClient;
+  private readonly contractId?: string;
 
-  constructor(client: LineProofClient) {
+  constructor(client: LineProofClient, options?: IdentityClientOptions | string) {
     this.client = client;
+    if (typeof options === 'string') {
+      validateContractId(options);
+      this.contractId = options;
+    } else if (options?.contractId) {
+      validateContractId(options.contractId);
+      this.contractId = options.contractId;
+    }
   }
 
   async bindIdentity(queueId: string, identity: string): Promise<string> {
-    if (!identity || typeof identity !== "string") {
-      throw new SDKError("INVALID_IDENTITY", "Identity public key is required");
+    const targetId = queueId || this.contractId || '';
+    validateContractId(targetId);
+    if (!identity || typeof identity !== 'string') {
+      throw new SDKError('INVALID_IDENTITY', 'Identity public key is required');
     }
     const sourceKeypair = this.client.requireKeypair();
     const source = await this.client.server.loadAccount(
@@ -36,8 +43,8 @@ export class IdentityClient {
     })
       .addOperation(
         Operation.invokeContractFunction({
-          contract: queueId,
-          function: "bind",
+          contract: targetId,
+          function: 'bind',
           args: [],
         }),
       )
@@ -48,15 +55,17 @@ export class IdentityClient {
   }
 
   async isBound(queueId: string, identity: string): Promise<boolean> {
-    const resultXdr = await this.client.simulateContractCall(queueId, "is_bound", [
+    const targetId = queueId || this.contractId || '';
+    validateContractId(targetId);
+    const resultXdr = await this.client.simulateContractCall(targetId, 'is_bound', [
       new Address(identity).toScVal(),
-      xdr.ScVal.scvSymbol(queueId),
+      xdr.ScVal.scvSymbol(targetId),
     ]);
 
-    if (resultXdr.switch().name !== "scvBool") {
+    if (resultXdr.switch().name !== 'scvBool') {
       throw new SDKError(
-        "INVALID_RESPONSE",
-        "Expected Bool response from contract",
+        'INVALID_RESPONSE',
+        'Expected Bool response from contract',
       );
     }
 
@@ -66,11 +75,15 @@ export class IdentityClient {
   async recordTransferAttempt(
     from: string,
     to: string,
-    _queueId: string,
+    queueId: string,
   ): Promise<void> {
+    const targetId = queueId || this.contractId || '';
+    if (targetId) {
+      validateContractId(targetId);
+    }
     throw new SDKError(
-      "TRANSFER_DISABLED",
-      "Transfer attempts are reverted by the protocol",
+      'TRANSFER_DISABLED',
+      'Transfer attempts are reverted by the protocol',
       { from, to },
     );
   }

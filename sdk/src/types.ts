@@ -8,6 +8,7 @@ export interface LineProofConfig {
   publicKey?: string;
   timeoutMs?: number;
   maxRetries?: number;
+  wasmDir?: string;
 }
 
 /** Convenience enum so callers don't need to import from @stellar/stellar-sdk */
@@ -147,3 +148,17 @@ export function isNetworkPassphrase(network: string): boolean {
     Object.values(NetworkPassphrase).includes(network as NetworkPassphrase)
   );
 }
+
+export function validateContractId(contractId: string): void {
+  if (typeof contractId !== 'string' || !contractId.startsWith('C') || contractId.length !== 56) {
+    throw new SDKError('INVALID_CONTRACT_ID', `Invalid Stellar contract ID: ${contractId}`);
+  }
+  if (typeof (StrKey as any).isValidContractId === 'function') {
+    if (!(StrKey as any).isValidContractId(contractId)) {
+      throw new SDKError('INVALID_CONTRACT_ID', `Invalid Stellar contract ID: ${contractId}`);
+    }
+  } else if (!/^C[A-Z0-9]{55}$/.test(contractId)) {
+    throw new SDKError('INVALID_CONTRACT_ID', `Invalid Stellar contract ID: ${contractId}`);
+  }
+}
+
