@@ -1,12 +1,30 @@
+import {
+  Operation,
+  xdr,
+} from '@stellar/stellar-sdk';
+import { LineProofClient } from './client.js';
+import { SDKError, validateContractId } from './types.js';
+
+export type EscrowClientOptions = {
+  contractId?: string;
+};
 import { Operation, xdr } from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
 import { SDKError } from './types.js';
 
 export class EscrowClient {
   private readonly client: LineProofClient;
+  private readonly contractId?: string;
 
-  constructor(client: LineProofClient) {
+  constructor(client: LineProofClient, options?: EscrowClientOptions | string) {
     this.client = client;
+    if (typeof options === 'string') {
+      validateContractId(options);
+      this.contractId = options;
+    } else if (options?.contractId) {
+      validateContractId(options.contractId);
+      this.contractId = options.contractId;
+    }
   }
 
   async deposit(
@@ -14,43 +32,51 @@ export class EscrowClient {
     amount: number,
     _asset: string,
   ): Promise<string> {
+    const targetId = escrowContractId || this.contractId || '';
+    validateContractId(targetId);
     if (amount <= 0) {
-      throw new SDKError("INVALID_INPUT", "deposit amount must be positive");
+      throw new SDKError('INVALID_INPUT', 'deposit amount must be positive');
     }
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
-        contract: escrowContractId,
-        function: "deposit",
+        contract: targetId,
+        function: 'deposit',
         args: [],
       }),
     );
   }
 
   async release(escrowContractId: string, _identity: string): Promise<string> {
+    const targetId = escrowContractId || this.contractId || '';
+    validateContractId(targetId);
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
-        contract: escrowContractId,
-        function: "release",
+        contract: targetId,
+        function: 'release',
         args: [],
       }),
     );
   }
 
   async refund(escrowContractId: string, _identity: string): Promise<string> {
+    const targetId = escrowContractId || this.contractId || '';
+    validateContractId(targetId);
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
-        contract: escrowContractId,
-        function: "refund",
+        contract: targetId,
+        function: 'refund',
         args: [],
       }),
     );
   }
 
   async expire(escrowContractId: string, identity: string): Promise<string> {
+    const targetId = escrowContractId || this.contractId || '';
+    validateContractId(targetId);
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
-        contract: escrowContractId,
-        function: "expire",
+        contract: targetId,
+        function: 'expire',
         args: [xdr.ScVal.scvString(identity)],
       }),
     );

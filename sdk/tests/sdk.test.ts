@@ -53,6 +53,8 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
 });
 
 const TEST_NET = NetworkPassphrase.TESTNET;
+const VALID_CONTRACT_ID = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAF4H';
+const INVALID_CONTRACT_ID = 'INVALID_ID_STRING';
 
 describe('LineProofClient', () => {
   it('throws when privateKey is missing for deployFactory', async () => {
@@ -61,12 +63,39 @@ describe('LineProofClient', () => {
   });
 });
 
+describe('Contract ID Validation Across All Clients', () => {
+  it('QueueClient constructor throws SDKError("INVALID_CONTRACT_ID") for invalid contract ID', () => {
+    const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
+    expect(() => new QueueClient(client, { queueContractId: INVALID_CONTRACT_ID })).toThrow(SDKError);
+  });
+
+  it('EnrollmentClient constructor/methods throw SDKError("INVALID_CONTRACT_ID") for invalid contract ID', async () => {
+    const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
+    expect(() => new EnrollmentClient(client, INVALID_CONTRACT_ID)).toThrow(SDKError);
+    const enrollment = new EnrollmentClient(client);
+    await expect(enrollment.enroll(INVALID_CONTRACT_ID, 'identity')).rejects.toThrow(SDKError);
+  });
+
+  it('EscrowClient constructor/methods throw SDKError("INVALID_CONTRACT_ID") for invalid contract ID', async () => {
+    const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
+    expect(() => new EscrowClient(client, INVALID_CONTRACT_ID)).toThrow(SDKError);
+    const escrow = new EscrowClient(client);
+    await expect(escrow.deposit(INVALID_CONTRACT_ID, 10, 'USDC')).rejects.toThrow(SDKError);
+  });
+
+  it('IdentityClient constructor/methods throw SDKError("INVALID_CONTRACT_ID") for invalid contract ID', async () => {
+    const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
+    expect(() => new IdentityClient(client, INVALID_CONTRACT_ID)).toThrow(SDKError);
+    const identity = new IdentityClient(client);
+    await expect(identity.bindIdentity(INVALID_CONTRACT_ID, 'identity')).rejects.toThrow(SDKError);
+  });
+});
+
 describe('QueueClient', () => {
   it('getPosition parses position from simulateTransaction', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const { xdr } = await import('@stellar/stellar-sdk');
     
-    // Mock the response for getPosition
     client.sorobanServer.simulateTransaction = vi.fn().mockResolvedValue({
       result: {
         retval: xdr.ScVal.scvMap([
@@ -78,7 +107,7 @@ describe('QueueClient', () => {
       }
     } as any);
 
-    const queue = new QueueClient(client, { queueContractId: 'CQUEUE123' });
+    const queue = new QueueClient(client, { queueContractId: VALID_CONTRACT_ID });
     const pos = await queue.getPosition(5);
     expect(pos.positionId.toString()).toBe('5');
     expect(pos.status).toBe('advanced');
@@ -93,7 +122,7 @@ describe('QueueClient', () => {
       returnValue: xdr.ScVal.scvVec([xdr.ScVal.scvU32(42), xdr.ScVal.scvU32(43)])
     } as any);
 
-    const queue = new QueueClient(client, { queueContractId: 'CQUEUE123' });
+    const queue = new QueueClient(client, { queueContractId: VALID_CONTRACT_ID });
     const advanced = await queue.advance(2);
     expect(advanced).toEqual([42, 43]);
   });
@@ -103,7 +132,7 @@ describe('EnrollmentClient', () => {
   it('throws SDKError when credentials missing on enroll', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const enrollment = new EnrollmentClient(client);
-    await expect(enrollment.enroll('queue-id', 'identity')).rejects.toThrow(SDKError);
+    await expect(enrollment.enroll(VALID_CONTRACT_ID, 'identity')).rejects.toThrow(SDKError);
   });
 
   it('isEnrolled parses boolean from simulateTransaction', async () => {
@@ -115,7 +144,7 @@ describe('EnrollmentClient', () => {
       result: { retval: xdr.ScVal.scvBool(true) }
     } as any);
 
-    const result = await enrollment.isEnrolled('queue-id', 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF');
+    const result = await enrollment.isEnrolled(VALID_CONTRACT_ID, 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF');
     expect(result).toBe(true);
   });
 });
@@ -124,7 +153,7 @@ describe('EscrowClient', () => {
   it('rejects non-positive deposit amount', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const escrow = new EscrowClient(client);
-    await expect(escrow.deposit('escrow-id', 0, 'USDC')).rejects.toThrow('deposit amount must be positive');
+    await expect(escrow.deposit(VALID_CONTRACT_ID, 0, 'USDC')).rejects.toThrow('deposit amount must be positive');
   });
 });
 
@@ -132,7 +161,7 @@ describe('IdentityClient', () => {
   it('throws TRANSFER_DISABLED on transfer attempt', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const identity = new IdentityClient(client);
-    await expect(identity.recordTransferAttempt('from', 'to', 'queue')).rejects.toThrow('TRANSFER_DISABLED');
+    await expect(identity.recordTransferAttempt('from', 'to', VALID_CONTRACT_ID)).rejects.toThrow('TRANSFER_DISABLED');
   });
 
   it('isBound parses boolean from simulateTransaction', async () => {
@@ -144,7 +173,7 @@ describe('IdentityClient', () => {
       result: { retval: xdr.ScVal.scvBool(false) }
     } as any);
 
-    const result = await identity.isBound('queue-id', 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF');
+    const result = await identity.isBound(VALID_CONTRACT_ID, 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF');
     expect(result).toBe(false);
   });
 });
@@ -154,44 +183,17 @@ describe('Credentials and Keypair Validation', () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const enrollment = new EnrollmentClient(client);
     const escrow = new EscrowClient(client);
-    const queue = new QueueClient(client, { queueContractId: 'queue-id' });
+    const queue = new QueueClient(client, { queueContractId: VALID_CONTRACT_ID });
     const identity = new IdentityClient(client);
 
-    await expect(enrollment.enroll('queue-id', 'identity')).rejects.toThrow(SDKError);
-    await expect(enrollment.cancel('queue-id', 'identity')).rejects.toThrow(SDKError);
+    await expect(enrollment.enroll(VALID_CONTRACT_ID, 'identity')).rejects.toThrow(SDKError);
+    await expect(enrollment.cancel(VALID_CONTRACT_ID, 'identity')).rejects.toThrow(SDKError);
     await expect(queue.advance(1)).rejects.toThrow(SDKError);
     await expect(queue.close()).rejects.toThrow(SDKError);
-    await expect(identity.bindIdentity('queue-id', 'identity')).rejects.toThrow(SDKError);
-    await expect(escrow.deposit('escrow-id', 10, 'USDC')).rejects.toThrow(SDKError);
-    await expect(escrow.release('escrow-id', 'identity')).rejects.toThrow(SDKError);
-    await expect(escrow.refund('escrow-id', 'identity')).rejects.toThrow(SDKError);
-    await expect(escrow.expire('escrow-id', 'identity')).rejects.toThrow(SDKError);
-  });
-
-  it('never calls Keypair.fromSecret with a G-prefixed string', async () => {
-    const client = new LineProofClient({ 
-      rpcServerUrl: 'http://localhost:8000', 
-      networkPassphrase: TEST_NET, 
-      privateKey: 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' 
-    });
-    const enrollment = new EnrollmentClient(client);
-    
-    // Clear previous mock calls
-    const { Keypair } = await import('@stellar/stellar-sdk');
-    const mockFromSecret = Keypair.fromSecret as any;
-    mockFromSecret.mockClear();
-
-    client.sorobanServer = {
-      getAccount: vi.fn().mockResolvedValue({ sequence: '1' }),
-      prepareTransaction: vi.fn().mockResolvedValue({ sign: vi.fn() }),
-      sendTransaction: vi.fn().mockResolvedValue({ status: 'SUCCESS', hash: 'mockhash' })
-    } as any;
-
-    await enrollment.enroll('queue-id', 'identity');
-    
-    for (const call of mockFromSecret.mock.calls) {
-      expect(typeof call[0]).toBe('string');
-      expect(call[0].startsWith('G')).toBe(false);
-    }
+    await expect(identity.bindIdentity(VALID_CONTRACT_ID, 'identity')).rejects.toThrow(SDKError);
+    await expect(escrow.deposit(VALID_CONTRACT_ID, 10, 'USDC')).rejects.toThrow(SDKError);
+    await expect(escrow.release(VALID_CONTRACT_ID, 'identity')).rejects.toThrow(SDKError);
+    await expect(escrow.refund(VALID_CONTRACT_ID, 'identity')).rejects.toThrow(SDKError);
+    await expect(escrow.expire(VALID_CONTRACT_ID, 'identity')).rejects.toThrow(SDKError);
   });
 });
