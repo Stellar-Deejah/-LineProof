@@ -1,57 +1,68 @@
 import {
-  TransactionBuilder,
   Operation,
-  BASE_FEE,
-  SorobanRpc,
+  Address,
   xdr,
+  Address,
 } from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
+import { SDKError, validateContractId } from './types.js';
+
+export type EnrollmentClientOptions = {
+  contractId?: string;
+};
 import { SDKError } from './types.js';
-  SorobanDataBuilder,
-  Account,
-  SorobanRpc,
-  Address,
-} from "@stellar/stellar-sdk";
-import { LineProofClient } from "./client.js";
-import { SDKError } from "./types.js";
 
 export class EnrollmentClient {
   private readonly client: LineProofClient;
+  private readonly contractId?: string;
 
-  constructor(client: LineProofClient) {
+  constructor(client: LineProofClient, options?: EnrollmentClientOptions | string) {
     this.client = client;
+    if (typeof options === 'string') {
+      validateContractId(options);
+      this.contractId = options;
+    } else if (options?.contractId) {
+      validateContractId(options.contractId);
+      this.contractId = options.contractId;
+    }
   }
 
   async enroll(queueId: string, _identity: string): Promise<string> {
+    const targetId = queueId || this.contractId || '';
+    validateContractId(targetId);
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
-        contract: queueId,
-        function: "enroll",
+        contract: targetId,
+        function: 'enroll',
         args: [],
       }),
     );
   }
 
   async cancel(queueId: string, _identity: string): Promise<string> {
+    const targetId = queueId || this.contractId || '';
+    validateContractId(targetId);
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
-        contract: queueId,
-        function: "cancel",
+        contract: targetId,
+        function: 'cancel',
         args: [],
       }),
     );
   }
 
   async isEnrolled(queueId: string, identity: string): Promise<boolean> {
-    const resultXdr = await this.client.simulateContractCall(queueId, "is_enrolled", [
+    const targetId = queueId || this.contractId || '';
+    validateContractId(targetId);
+    const resultXdr = await this.client.simulateContractCall(targetId, 'is_enrolled', [
       new Address(identity).toScVal(),
-      xdr.ScVal.scvSymbol(queueId),
+      xdr.ScVal.scvSymbol(targetId),
     ]);
 
-    if (resultXdr.switch().name !== "scvBool") {
+    if (resultXdr.switch().name !== 'scvBool') {
       throw new SDKError(
-        "INVALID_RESPONSE",
-        "Expected Bool response from contract",
+        'INVALID_RESPONSE',
+        'Expected Bool response from contract',
       );
     }
 

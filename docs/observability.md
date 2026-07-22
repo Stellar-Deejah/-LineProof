@@ -20,10 +20,9 @@ Returns:
 
 Use this endpoint for load-balancer health checks and uptime monitors.
 
-`GET /public/health` returns the **same** shape (with a legacy `ts` alias for
-`timestamp` kept for backward compatibility), so monitoring tools and load
-balancers see one consistent payload regardless of which path they probe
-(issue #31 / #33).
+`GET /public/health` issues an HTTP 301 Permanent Redirect to `GET /health`,
+ensuring legacy probes and monitoring tools resolve to the canonical health check
+payload.
 
 ## Structured Logging
 
