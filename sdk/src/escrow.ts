@@ -1,15 +1,9 @@
-import { TransactionBuilder, Operation, BASE_FEE } from '@stellar/stellar-sdk';
+import {
+  Operation,
+  xdr,
+} from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
 import { SDKError } from './types.js';
-import {
-  TransactionBuilder,
-  Operation,
-  Keypair,
-  BASE_FEE,
-  xdr,
-} from "@stellar/stellar-sdk";
-import { LineProofClient } from "./client.js";
-import { SDKError } from "./types.js";
 
 export class EscrowClient {
   private readonly client: LineProofClient;
