@@ -6,6 +6,7 @@ import ProgressBar from '../components/ProgressBar';
 import Skeleton from '../components/Skeleton';
 import LiveRegion from '../components/LiveRegion';
 import EmptyState from '../components/EmptyState';
+import AlertBanner from '../components/AlertBanner';
 import { useEffect, useRef } from 'react';
 
 export default function QueuesPage() {
@@ -66,6 +67,8 @@ export default function QueuesPage() {
     );
   }
 
+  if (error) {
+    return <AlertBanner variant="error" message={`Failed to load queues: ${error}`} />;
   if (error && queues.length === 0) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">

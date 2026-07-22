@@ -3,6 +3,7 @@ import { ShieldCheck } from 'lucide-react';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import CopyButton from '../components/CopyButton';
+import AlertBanner from '../components/AlertBanner';
 import LiveRegion from '../components/LiveRegion';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
@@ -90,6 +91,9 @@ export default function DashboardPage() {
           </button>
         </div>
         {error && (
+          <div className="mt-4">
+            <AlertBanner variant="error" message={error} />
+          </div>
           <LiveRegion className="mt-2 text-sm text-red-600">
             {error}
           </LiveRegion>
