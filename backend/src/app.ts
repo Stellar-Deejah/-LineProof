@@ -9,6 +9,7 @@ import escrowRoutes from './routes/escrow.js';
 import publicRoutes from './routes/public.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { defaultRateLimiter, writeRateLimiter } from './middleware/rateLimiter.js';
+import { requestId } from './middleware/requestId.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { register, METRICS_CONTENT_TYPE } from './metrics/registry.js';
 import { healthPayload } from './health.js';
@@ -22,6 +23,7 @@ export function createApp(): Express {
 
   app.use(helmet());
   app.use(cors({ origin: allowedOrigins }));
+  app.use(requestId);
 
   // GET /metrics is mounted before logging and rate limiting so scrapes are never
   // throttled (issue #31) and don't pollute request metrics with self-traffic.
@@ -35,7 +37,12 @@ export function createApp(): Express {
   });
 
   app.use(express.json({ limit: '1mb' }));
-  app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+  // Morgan is a dev-only pretty-printer. requestLogger (below) is the sole
+  // source of structured JSON logs in every other environment — mounting
+  // both doubled log volume with two incompatible field sets (issue #30).
+  if (process.env.NODE_ENV === 'development') {
+    app.use(morgan('dev'));
+  }
   app.use(requestLogger);
   app.use(defaultRateLimiter);
 

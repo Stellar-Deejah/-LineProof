@@ -4,6 +4,7 @@ import { depositEscrow, releaseEscrow, refundEscrow, expireEscrow, getEscrow } f
 import { recordEscrowDeposit, recordEscrowClosed } from '../metrics/registry.js';
 import { validateStellarAddress } from '../middleware/validateStellarAddress.js';
 import { StellarAddress } from '../schemas/stellar.js';
+import { NotFoundError, ValidationError } from '../errors/index.js';
 
 const router: IRouter = Router();
 
@@ -33,13 +34,10 @@ type DepositInput = z.infer<typeof DepositSchema>;
 type EscrowActionInput = z.infer<typeof EscrowActionSchema>;
 
 router.post('/deposit', validateStellarAddress(['identity']), (req: Request<{}, {}, DepositInput>, res: Response, next): void => {
-  const parsed = DepositSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
-    return;
-  }
-
   try {
+    const parsed = DepositSchema.safeParse(req.body);
+    if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
+
     const record = depositEscrow(parsed.data);
     recordEscrowDeposit(record.asset);
     res.status(201).json(record);
@@ -49,18 +47,13 @@ router.post('/deposit', validateStellarAddress(['identity']), (req: Request<{}, 
 });
 
 router.post('/release', (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
-  const parsed = EscrowActionSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
-    return;
-  }
-
   try {
+    const parsed = EscrowActionSchema.safeParse(req.body);
+    if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
+
     const updated = releaseEscrow(parsed.data.escrowId);
-    if (!updated) {
-      res.status(404).json({ message: 'Escrow not found' });
-      return;
-    }
+    if (!updated) throw new NotFoundError('Escrow not found');
+
     recordEscrowClosed();
     res.json(updated);
   } catch (err) {
@@ -69,18 +62,13 @@ router.post('/release', (req: Request<{}, {}, EscrowActionInput>, res: Response,
 });
 
 router.post('/refund', (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
-  const parsed = EscrowActionSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
-    return;
-  }
-
   try {
+    const parsed = EscrowActionSchema.safeParse(req.body);
+    if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
+
     const updated = refundEscrow(parsed.data.escrowId);
-    if (!updated) {
-      res.status(404).json({ message: 'Escrow not found' });
-      return;
-    }
+    if (!updated) throw new NotFoundError('Escrow not found');
+
     recordEscrowClosed();
     res.json(updated);
   } catch (err) {
@@ -89,18 +77,13 @@ router.post('/refund', (req: Request<{}, {}, EscrowActionInput>, res: Response, 
 });
 
 router.post('/expire', (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
-  const parsed = EscrowActionSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
-    return;
-  }
-
   try {
+    const parsed = EscrowActionSchema.safeParse(req.body);
+    if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
+
     const updated = expireEscrow(parsed.data.escrowId);
-    if (!updated) {
-      res.status(404).json({ message: 'Escrow not found' });
-      return;
-    }
+    if (!updated) throw new NotFoundError('Escrow not found');
+
     recordEscrowClosed();
     res.json(updated);
   } catch (err) {
@@ -108,10 +91,14 @@ router.post('/expire', (req: Request<{}, {}, EscrowActionInput>, res: Response, 
   }
 });
 
-router.get('/:id', (req: Request<{ id: string }>, res: Response): Response | void => {
-  const record = getEscrow(req.params.id);
-  if (!record) return res.status(404).json({ message: 'Escrow not found' });
-  return res.json(record);
+router.get('/:id', (req: Request<{ id: string }>, res: Response, next): void => {
+  try {
+    const record = getEscrow(req.params.id);
+    if (!record) throw new NotFoundError('Escrow not found');
+    res.json(record);
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

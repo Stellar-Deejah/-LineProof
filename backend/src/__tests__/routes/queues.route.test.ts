@@ -96,7 +96,7 @@ describe('Queues Routes', () => {
     it('returns 400 on invalid body', async () => {
       const res = await request(app).post('/api/queues').send({ name: 'q1' });
       expect(res.status).toBe(400);
-      expect(res.body.issues).toBeDefined();
+      expect(res.body.error.issues).toBeDefined();
     });
 
     it('returns 201 on success', async () => {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import escrowRouter from '../routes/escrow.js';
+import { errorHandler } from '../middleware/errorHandler.js';
 
 // Mock the services
 vi.mock('../services/escrowService.js', () => ({
@@ -28,6 +29,7 @@ describe('Escrow Routes - Stellar Address Validation', () => {
     app = express();
     app.use(express.json());
     app.use('/api/escrow', escrowRouter);
+    app.use(errorHandler);
     vi.clearAllMocks();
   });
 
@@ -99,9 +101,9 @@ describe('Escrow Routes - Stellar Address Validation', () => {
         });
 
       expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('message');
-      expect(response.body.issues).toBeDefined();
-      expect(response.body.issues[0].message).toContain('Invalid escrowId format');
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error.issues).toBeDefined();
+      expect(response.body.error.issues[0].message).toContain('Invalid escrowId format');
     });
 
     it('should reject escrowId without colon separator', async () => {
@@ -112,7 +114,7 @@ describe('Escrow Routes - Stellar Address Validation', () => {
         });
 
       expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('message');
+      expect(response.body).toHaveProperty('error');
     });
 
     it('should accept valid escrowId with valid embedded identity', async () => {
@@ -148,9 +150,9 @@ describe('Escrow Routes - Stellar Address Validation', () => {
         });
 
       expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('message');
-      expect(response.body.issues).toBeDefined();
-      expect(response.body.issues[0].message).toContain('Invalid escrowId format');
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error.issues).toBeDefined();
+      expect(response.body.error.issues[0].message).toContain('Invalid escrowId format');
     });
 
     it('should accept valid escrowId with valid embedded identity', async () => {
@@ -185,9 +187,9 @@ describe('Escrow Routes - Stellar Address Validation', () => {
         });
 
       expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('message');
-      expect(response.body.issues).toBeDefined();
-      expect(response.body.issues[0].message).toContain('Invalid escrowId format');
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error.issues).toBeDefined();
+      expect(response.body.error.issues[0].message).toContain('Invalid escrowId format');
     });
 
     it('should accept valid escrowId with valid embedded identity', async () => {

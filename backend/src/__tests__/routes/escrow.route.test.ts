@@ -17,7 +17,7 @@ describe('Escrow Routes', () => {
         .send({ queueId: 'q1', identity: 'GB123', asset: 'USDC' });
       
       expect(res.status).toBe(400);
-      expect(res.body.issues).toBeDefined();
+      expect(res.body.error.issues).toBeDefined();
     });
 
     it('returns 201 on valid body', async () => {
