@@ -39,7 +39,6 @@ pub struct EscrowConfig {
     pub admin: Address,
 }
 
-#[contract]
 pub trait Escrow {
     fn deposit(env: Env, caller: Address, queue_id: Symbol, amount: i128, asset: Address);
     fn release(env: Env, admin: Address, identity: Address, queue_id: Symbol);
@@ -51,6 +50,7 @@ pub trait Escrow {
     fn get_total_held(env: Env, queue_id: Symbol) -> i128;
 }
 
+#[contract]
 pub struct EscrowImpl;
 
 #[contractimpl]
@@ -204,10 +204,10 @@ impl EscrowImpl {
 
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _amount: i128) {
     env.events().publish((
-        Symbol::new(env, "lineproof.escrow"),
+        Symbol::new(env, "lineproof_escrow"),
         kind,
         queue_id,
-    ));
+    ), ());
 }
 
 #[cfg(test)]

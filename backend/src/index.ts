@@ -1,3 +1,7 @@
+import { app } from './app.js';
+import { config } from './config.js';
+import { EventIndexer } from './services/eventIndexer.js';
+
 import "dotenv/config";
 import express, { type Express } from "express";
 import cors from "cors";

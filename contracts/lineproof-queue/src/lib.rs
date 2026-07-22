@@ -57,6 +57,22 @@ pub enum PositionStatus {
     Cancelled,
 }
 
+pub trait Queue {
+    fn initialize(env: Env, admin: Address, config: QueueConfig);
+    fn open_enrollment(env: Env, admin: Address);
+    fn close_enrollment(env: Env, admin: Address);
+    fn enroll_position(env: Env, identity: Address) -> u32;
+    fn cancel_position(env: Env, identity: Address, position_id: u32);
+    fn advance(env: Env, admin: Address, batch_size: u32) -> Vec<u32>;
+    fn get_position(env: Env, position_id: u32) -> Option<Position>;
+    fn get_config(env: Env) -> QueueConfig;
+    fn current_position_index(env: Env) -> u32;
+    fn total_enrolled(env: Env) -> u32;
+    fn expire_position(env: Env, admin: Address, position_id: u32);
+    fn expire_positions_batch(env: Env, admin: Address, position_ids: Vec<u32>);
+    fn close(env: Env, admin: Address);
+}
+
 #[contract]
 pub struct QueueImpl;
 
@@ -281,6 +297,54 @@ impl QueueImpl {
             &admin,
             env.ledger().timestamp(),
         );
+    }
+
+    fn expire_position(env: Env, admin: Address, position_id: u32) {
+        admin.require_auth();
+        let config = Self::get_config_internal(&env);
+        if !matches!(config.status, QueueStatus::AdvancementActive) && !matches!(config.status, QueueStatus::Closed) {
+            panic!("queue must be in advancement or closed state");
+        }
+        let mut pos = Self::load_position(&env, position_id);
+        if !matches!(pos.status, PositionStatus::Pending) {
+            panic!("only pending positions can be expired");
+        }
+        pos.status = PositionStatus::Expired;
+        let key_pos = Self::position_key(&env, position_id);
+        env.storage().persistent().set(&key_pos, &pos);
+        env.storage().persistent().extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
+        emit(
+            &env,
+            Symbol::new(&env, "Expired"),
+            position_id,
+            &admin,
+            env.ledger().timestamp(),
+        );
+    }
+
+    fn expire_positions_batch(env: Env, admin: Address, position_ids: Vec<u32>) {
+        admin.require_auth();
+        let config = Self::get_config_internal(&env);
+        if !matches!(config.status, QueueStatus::AdvancementActive) && !matches!(config.status, QueueStatus::Closed) {
+            panic!("queue must be in advancement or closed state");
+        }
+        for position_id in position_ids.iter() {
+            let mut pos = Self::load_position(&env, position_id);
+            if !matches!(pos.status, PositionStatus::Pending) {
+                panic!("only pending positions can be expired");
+            }
+            pos.status = PositionStatus::Expired;
+            let key_pos = Self::position_key(&env, position_id);
+            env.storage().persistent().set(&key_pos, &pos);
+            env.storage().persistent().extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
+            emit(
+                &env,
+                Symbol::new(&env, "Expired"),
+                position_id,
+                &admin,
+                env.ledger().timestamp(),
+            );
+        }
     }
 }
 

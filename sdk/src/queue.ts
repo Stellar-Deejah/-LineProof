@@ -1,12 +1,10 @@
 import {
-  TransactionBuilder,
   Operation,
-  BASE_FEE,
-  SorobanRpc,
-  nativeToScVal,
   xdr,
+  scValToNative,
 } from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
+import { SDKError, Position, validateContractId } from './types.js';
 import { SDKError, Position } from './types.js';
 
 export type QueueClientOptions = {
@@ -18,6 +16,10 @@ export class QueueClient {
   private readonly lineProof: LineProofClient;
 
   constructor(lineProof: LineProofClient, options: QueueClientOptions) {
+    if (!options || typeof options.queueContractId !== 'string') {
+      throw new SDKError('INVALID_CONTRACT_ID', 'queueContractId is required');
+    }
+    validateContractId(options.queueContractId);
     this.lineProof = lineProof;
     this.queueContractId = options.queueContractId;
   }
@@ -25,8 +27,8 @@ export class QueueClient {
   async getPosition(positionId: number): Promise<Position> {
     if (!Number.isInteger(positionId) || positionId <= 0) {
       throw new SDKError(
-        "INVALID_INPUT",
-        "positionId must be a positive integer",
+        'INVALID_INPUT',
+        'positionId must be a positive integer',
       );
     }
 
@@ -53,42 +55,64 @@ export class QueueClient {
     const resultXdr = simulateResult.result.retval;
     if (resultXdr.switch() !== xdr.ScValType.scvVec()) {
       throw new SDKError('INVALID_RESPONSE', 'Expected Vec response from contract');
+    const resultXdr = await this.lineProof.simulateContractCall(
+      this.queueContractId,
+      'get_position',
+      [xdr.ScVal.scvU32(positionId)],
+    );
+
+    if (resultXdr.switch() === xdr.ScValType.scvVoid()) {
+      throw new SDKError('NOT_FOUND', 'Position not found');
     }
 
-    const vec = resultXdr.vec();
-    if (!vec || vec.length === 0) {
-      throw new SDKError(
-        "INVALID_RESPONSE",
-        "Empty Vec response from contract",
-      );
+    const parsed = scValToNative(resultXdr) as Record<string, any>;
+    if (!parsed) {
+      throw new SDKError('INVALID_RESPONSE', 'Failed to parse Position from contract');
+    }
+
+    // Soroban enums/symbols can sometimes be parsed as strings or objects.
+    let status = 'pending';
+    if (parsed.status) {
+      if (typeof parsed.status === 'string') {
+        status = parsed.status.toLowerCase();
+      } else if (parsed.status && parsed.status.tag) {
+        status = parsed.status.tag.toLowerCase();
+      }
     }
 
     const position: Position = {
-      positionId: BigInt(positionId),
-      enrolledAt: Date.now(),
-      identity: this.lineProof.getPublicKey(),
-      status: "pending" as any,
+      positionId: BigInt(parsed.position_id?.toString() || positionId),
+      enrolledAt: Number(parsed.enrolled_at || 0),
+      identity: parsed.identity || '',
+      status: status as any,
+      ...(parsed.advanced_at ? { advancedAt: Number(parsed.advanced_at) } : {}),
     };
+    if (parsed.advanced_at) {
+      position.advancedAt = Number(parsed.advanced_at);
+    }
 
     return position;
   }
 
   async advance(_batchSize: number): Promise<number[]> {
+  async advance(batchSize: number): Promise<number[]> {
     const hash = await this.lineProof.submitSorobanOperation(
       Operation.invokeContractFunction({
         contract: this.queueContractId,
-        function: "advance",
-        args: [],
+        function: 'advance',
+        args: [xdr.ScVal.scvU32(batchSize)],
       }),
     );
-    return [parseInt(hash.slice(0, 8), 16)];
+    const resultXdr = await this.lineProof.awaitTransaction(hash);
+    const advancedIds = scValToNative(resultXdr) as number[];
+    return advancedIds || [];
   }
 
   async close(): Promise<string> {
     return this.lineProof.submitSorobanOperation(
       Operation.invokeContractFunction({
         contract: this.queueContractId,
-        function: "close",
+        function: 'close',
         args: [],
       }),
     );

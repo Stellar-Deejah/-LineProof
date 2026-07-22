@@ -3,6 +3,7 @@ import { Keypair } from '@stellar/stellar-sdk';
 import {
   SDKError,
   validateAddress,
+  validateContractId,
   isNetworkPassphrase,
   NetworkPassphrase,
   QueueStatus,
@@ -26,7 +27,6 @@ describe('SDKError', () => {
 
 describe('validateAddress', () => {
   it('does not throw for a real valid Stellar public key', () => {
-    // Keypair.random() produces a cryptographically valid key with correct checksum
     const key = Keypair.random().publicKey();
     expect(() => validateAddress(key)).not.toThrow();
   });
@@ -41,6 +41,32 @@ describe('validateAddress', () => {
 
   it('throws SDKError for a key with wrong prefix', () => {
     expect(() => validateAddress('SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')).toThrow(SDKError);
+  });
+});
+
+describe('validateContractId', () => {
+  it('does not throw for a valid Stellar contract ID starting with C', () => {
+    // 56 characters valid StrKey C-address
+    const validContractId = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAF4H';
+    expect(() => validateContractId(validContractId)).not.toThrow();
+  });
+
+  it('throws SDKError("INVALID_CONTRACT_ID") for G-prefixed address', () => {
+    const pubKey = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+    expect(() => validateContractId(pubKey)).toThrow(SDKError);
+    try {
+      validateContractId(pubKey);
+    } catch (err: any) {
+      expect(err.code).toBe('INVALID_CONTRACT_ID');
+    }
+  });
+
+  it('throws SDKError("INVALID_CONTRACT_ID") for short string', () => {
+    expect(() => validateContractId('C12345')).toThrow(SDKError);
+  });
+
+  it('throws SDKError("INVALID_CONTRACT_ID") for empty string', () => {
+    expect(() => validateContractId('')).toThrow(SDKError);
   });
 });
 
