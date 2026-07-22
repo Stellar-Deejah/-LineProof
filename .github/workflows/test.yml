@@ -15,6 +15,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
         with:
           targets: wasm32-unknown-unknown
+          components: rustfmt
       - name: Cache Cargo registry
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -24,10 +25,11 @@ jobs:
             contracts/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
+      - name: Check formatting
+        run: cargo fmt -- --check || (echo "::error::Rust code is not formatted. Run 'cargo fmt --all' in contracts/ locally and commit the result." && exit 1)
+        working-directory: contracts
       - name: Build contracts (WASM target)
-        run: |
-          cargo fmt
-          cargo build --target wasm32-unknown-unknown --release
+        run: cargo build --target wasm32-unknown-unknown --release
         working-directory: contracts
       - name: Run contract tests
         run: cargo test --workspace
@@ -62,3 +64,19 @@ jobs:
         run: pnpm --filter @lineproof/sdk build
       - name: Run backend tests
         run: pnpm --filter @lineproof/backend test
+
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck frontend
+        run: pnpm --filter @lineproof/frontend typecheck
+      - name: Run frontend tests
+        run: pnpm --filter @lineproof/frontend test

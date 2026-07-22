@@ -49,6 +49,13 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
       STANDALONE: 'Standalone Network ; February 2017',
     },
     BASE_FEE: '100',
+    SorobanRpc: {
+      Server: vi.fn(() => ({
+        simulateTransaction: vi.fn(async () => ({
+          result: 'AAAAAQ==', // base64 encoded XDR for a boolean true
+        })),
+      })),
+    },
   };
 });
 
@@ -92,6 +99,10 @@ describe('Contract ID Validation Across All Clients', () => {
 });
 
 describe('QueueClient', () => {
+  it('getPosition rejects a non-positive positionId', async () => {
+    const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
+    const queue = new QueueClient(client, { queueContractId: 'CQUEUE123' });
+    await expect(queue.getPosition(0)).rejects.toThrow('INVALID_INPUT');
   it('getPosition parses position from simulateTransaction', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const { xdr } = await import('@stellar/stellar-sdk');

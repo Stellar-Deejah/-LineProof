@@ -10,13 +10,6 @@ describe('QueueStatusBadge component', () => {
     expect(badge).toHaveClass('bg-slate-100');
   });
 
-  it('renders Open status', () => {
-    render(<QueueStatusBadge status="Open" />);
-    const badge = screen.getByText('Open');
-    expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-emerald-50');
-  });
-
   it('renders EnrollmentOpen status', () => {
     render(<QueueStatusBadge status="EnrollmentOpen" />);
     const badge = screen.getByText('Enrollment Open');

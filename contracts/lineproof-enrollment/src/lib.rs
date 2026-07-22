@@ -154,6 +154,9 @@ impl Enrollment for EnrollmentImpl {
         };
         let key = Self::record_key(&env, &caller, &queue_id);
         env.storage().persistent().set(&key, &record);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         
         // Increment enrollment count
@@ -228,6 +231,9 @@ impl Enrollment for EnrollmentImpl {
         env.storage()
             .persistent()
             .set(&Symbol::new(&env, "dup_behavior"), &behavior);
+        env.storage()
+            .persistent()
+            .extend_ttl(&Symbol::new(&env, "dup_behavior"), TTL_THRESHOLD, TTL_EXTEND_TO);
         env.storage().persistent().extend_ttl(&Symbol::new(&env, "dup_behavior"), TTL_THRESHOLD, TTL_EXTEND_TO);
         
         env.events().publish(
@@ -248,8 +254,17 @@ impl Enrollment for EnrollmentImpl {
         record.finalized = true;
         let key = Self::record_key(&env, &identity, &queue_id);
         env.storage().persistent().set(&key, &record);
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        emit(&env, Symbol::new(&env, "Finalized"), queue_id, &identity, record.enrolled_at, record.proof_hash);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        emit(
+            &env,
+            Symbol::new(&env, "Finalized"),
+            queue_id,
+            &identity,
+            record.enrolled_at,
+            record.proof_hash,
+        );
     }
 
     fn enrollment_count(env: Env, queue_id: Symbol) -> u32 {
@@ -328,11 +343,14 @@ impl EnrollmentImpl {
 
     fn load_record(env: &Env, identity: &Address, queue_id: &Symbol) -> EnrollmentRecord {
         let key = Self::record_key(env, identity, queue_id);
-        let record = env.storage()
+        let record = env
+            .storage()
             .persistent()
             .get(&key)
             .unwrap_or_else(|| panic!("record missing"));
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         record
     }
 
@@ -367,6 +385,8 @@ impl EnrollmentImpl {
 }
 
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64, _hash: BytesN<32>) {
+    env.events()
+        .publish((Symbol::new(env, "lineproof.enrollment"), kind, queue_id));
     env.events().publish((
         Symbol::new(env, "lineproof_enrollment"),
         kind,

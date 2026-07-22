@@ -396,6 +396,7 @@ impl QueueFactoryImpl {
 
 fn emit(env: &Env, kind: Symbol, slug: Symbol, _contract_id: BytesN<32>, version: u32, _timestamp: u64) {
     env.events()
+        .publish((Symbol::new(env, "lineproof.factory"), kind, slug, version));
         .publish((Symbol::new(env, "lineproof_factory"), kind, slug, version), ());
 }
 

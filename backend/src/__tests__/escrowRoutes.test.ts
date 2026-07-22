@@ -69,6 +69,9 @@ describe('Escrow Routes - Stellar Address Validation', () => {
     it('should accept valid G-prefixed Stellar address', async () => {
       const { depositEscrow } = await import('../services/escrowService.js');
       vi.mocked(depositEscrow).mockReturnValue({
+        id: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        queueId: 'test-queue',
+        identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         id: `test-queue:${VALID_KEY}`,
         queueId: 'test-queue',
         identity: VALID_KEY,
@@ -76,6 +79,7 @@ describe('Escrow Routes - Stellar Address Validation', () => {
         asset: 'XLM',
         status: 'Active',
         createdAt: new Date().toISOString(),
+        expiresAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 86400000).toISOString(),
       });
 
@@ -83,6 +87,7 @@ describe('Escrow Routes - Stellar Address Validation', () => {
         .post('/api/escrow/deposit')
         .send({
           queueId: 'test-queue',
+          identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
           identity: VALID_KEY,
           amount: 100,
           asset: 'XLM',
@@ -122,6 +127,13 @@ describe('Escrow Routes - Stellar Address Validation', () => {
       vi.mocked(releaseEscrow).mockReturnValue({
         id: `test-queue:${VALID_KEY}`,
         queueId: 'test-queue',
+        identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        amount: 100,
+        asset: 'XLM',
+        status: 'Released',
+        id: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date().toISOString(),
         identity: VALID_KEY,
         amount: 100,
         asset: 'XLM',
@@ -134,6 +146,7 @@ describe('Escrow Routes - Stellar Address Validation', () => {
       const response = await request(app)
         .post('/api/escrow/release')
         .send({
+          escrowId: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
           escrowId: `test-queue:${VALID_KEY}`,
         });
 
@@ -160,6 +173,13 @@ describe('Escrow Routes - Stellar Address Validation', () => {
       vi.mocked(refundEscrow).mockReturnValue({
         id: `test-queue:${VALID_KEY}`,
         queueId: 'test-queue',
+        identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        amount: 100,
+        asset: 'XLM',
+        status: 'Refunded',
+        id: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date().toISOString(),
         identity: VALID_KEY,
         amount: 100,
         asset: 'XLM',
@@ -171,6 +191,7 @@ describe('Escrow Routes - Stellar Address Validation', () => {
       const response = await request(app)
         .post('/api/escrow/refund')
         .send({
+          escrowId: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
           escrowId: `test-queue:${VALID_KEY}`,
         });
 
@@ -197,6 +218,13 @@ describe('Escrow Routes - Stellar Address Validation', () => {
       vi.mocked(expireEscrow).mockReturnValue({
         id: `test-queue:${VALID_KEY}`,
         queueId: 'test-queue',
+        identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        amount: 100,
+        asset: 'XLM',
+        status: 'Expired',
+        id: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date().toISOString(),
         identity: VALID_KEY,
         amount: 100,
         asset: 'XLM',
@@ -208,6 +236,7 @@ describe('Escrow Routes - Stellar Address Validation', () => {
       const response = await request(app)
         .post('/api/escrow/expire')
         .send({
+          escrowId: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
           escrowId: `test-queue:${VALID_KEY}`,
         });
 

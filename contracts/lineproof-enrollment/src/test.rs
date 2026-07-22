@@ -48,6 +48,13 @@ fn test_is_enrolled_returns_correct_state() {
     let contract_id = env.register(EnrollmentImpl, ());
     let client = EnrollmentImplClient::new(&env, &contract_id);
     let queue_id = Symbol::new(&env, "visa");
+    assert!(!EnrollmentImpl::is_enrolled(
+        env.clone(),
+        caller.clone(),
+        queue_id.clone()
+    ));
+    EnrollmentImpl::enroll(env.clone(), caller.clone(), queue_id.clone());
+    assert!(EnrollmentImpl::is_enrolled(env, caller, queue_id));
     assert!(!client.is_enrolled(&caller, &queue_id));
     client.enroll(&caller, &queue_id, &None);
     assert!(client.is_enrolled(&caller, &queue_id));
