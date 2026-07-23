@@ -2,6 +2,7 @@ import { Router, type IRouter, Request, Response } from 'express';
 import { z } from 'zod';
 import { depositEscrow, releaseEscrow, refundEscrow, expireEscrow, getEscrow } from '../services/escrowService.js';
 import { recordEscrowDeposit, recordEscrowClosed } from '../metrics/registry.js';
+import { requireAuth } from '../middleware/auth.js';
 import { validateStellarAddress } from '../middleware/validateStellarAddress.js';
 import { StellarAddress } from '../schemas/stellar.js';
 import { NotFoundError, ValidationError } from '../errors/index.js';
@@ -46,7 +47,7 @@ router.post('/deposit', validateStellarAddress(['identity']), (req: Request<{}, 
   }
 });
 
-router.post('/release', (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
+router.post('/release', requireAuth, (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
   try {
     const parsed = EscrowActionSchema.safeParse(req.body);
     if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
@@ -61,7 +62,7 @@ router.post('/release', (req: Request<{}, {}, EscrowActionInput>, res: Response,
   }
 });
 
-router.post('/refund', (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
+router.post('/refund', requireAuth, (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
   try {
     const parsed = EscrowActionSchema.safeParse(req.body);
     if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
@@ -76,7 +77,7 @@ router.post('/refund', (req: Request<{}, {}, EscrowActionInput>, res: Response, 
   }
 });
 
-router.post('/expire', (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
+router.post('/expire', requireAuth, (req: Request<{}, {}, EscrowActionInput>, res: Response, next): void => {
   try {
     const parsed = EscrowActionSchema.safeParse(req.body);
     if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });

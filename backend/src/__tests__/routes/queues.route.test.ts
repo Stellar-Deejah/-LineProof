@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import { app } from '../../app.js';
 import * as queueService from '../../services/queueService.js';
@@ -7,7 +7,17 @@ import { readQueueOnChain } from '../../contracts/index.js';
 vi.mock('../../services/queueService.js');
 vi.mock('../../contracts/index.js');
 
+const TEST_API_KEY = 'test-api-key-12345678';
+
 describe('Queues Routes', () => {
+  beforeAll(() => {
+    process.env.OPERATOR_API_KEY = TEST_API_KEY;
+  });
+
+  afterAll(() => {
+    delete process.env.OPERATOR_API_KEY;
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(readQueueOnChain).mockResolvedValue(undefined);
@@ -94,20 +104,26 @@ describe('Queues Routes', () => {
 
   describe('POST /api/queues', () => {
     it('returns 400 on invalid body', async () => {
-      const res = await request(app).post('/api/queues').send({ name: 'q1' });
+      const res = await request(app)
+        .post('/api/queues')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ name: 'q1' });
       expect(res.status).toBe(400);
       expect(res.body.error.issues).toBeDefined();
     });
 
     it('returns 201 on success', async () => {
       vi.mocked(queueService.createQueue).mockReturnValue({ id: 'q1', slug: 'q1' } as any);
-      const res = await request(app).post('/api/queues').send({
-        name: 'q1',
-        slug: 'q1',
-        description: 'desc',
-        maxPositions: 10,
-        advancementRule: 'FIFO'
-      });
+      const res = await request(app)
+        .post('/api/queues')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          name: 'q1',
+          slug: 'q1',
+          description: 'desc',
+          maxPositions: 10,
+          advancementRule: 'FIFO'
+        });
       expect(res.status).toBe(201);
       expect(res.body).toEqual({ id: 'q1', slug: 'q1' });
     });
@@ -116,13 +132,19 @@ describe('Queues Routes', () => {
   describe('POST /api/queues/:id/advance', () => {
     it('returns 404 if advance fails', async () => {
       vi.mocked(queueService.advanceQueue).mockReturnValue(undefined);
-      const res = await request(app).post('/api/queues/q1/advance').send({ batchSize: 1 });
+      const res = await request(app)
+        .post('/api/queues/q1/advance')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ batchSize: 1 });
       expect(res.status).toBe(404);
     });
 
     it('returns 200 on success', async () => {
       vi.mocked(queueService.advanceQueue).mockReturnValue({ id: 'q1' } as any);
-      const res = await request(app).post('/api/queues/q1/advance').send({ batchSize: 1 });
+      const res = await request(app)
+        .post('/api/queues/q1/advance')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ batchSize: 1 });
       expect(res.status).toBe(200);
     });
   });
@@ -130,13 +152,19 @@ describe('Queues Routes', () => {
   describe('POST /api/queues/:id/close', () => {
     it('returns 404 if close fails', async () => {
       vi.mocked(queueService.closeQueue).mockReturnValue(undefined);
-      const res = await request(app).post('/api/queues/q1/close').send();
+      const res = await request(app)
+        .post('/api/queues/q1/close')
+        .set('X-API-Key', TEST_API_KEY)
+        .send();
       expect(res.status).toBe(404);
     });
 
     it('returns 200 on success', async () => {
       vi.mocked(queueService.closeQueue).mockReturnValue({ id: 'q1' } as any);
-      const res = await request(app).post('/api/queues/q1/close').send();
+      const res = await request(app)
+        .post('/api/queues/q1/close')
+        .set('X-API-Key', TEST_API_KEY)
+        .send();
       expect(res.status).toBe(200);
     });
   });

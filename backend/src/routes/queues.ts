@@ -4,6 +4,7 @@ import { listQueues, getQueueById, createQueue, advanceQueue, closeQueue, getQue
 import { readQueueOnChain } from '../contracts/index.js';
 import { SlugSchema } from '../schemas/slug.js';
 import { NotFoundError, ValidationError } from '../errors/index.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router: IRouter = Router();
 
@@ -116,7 +117,7 @@ router.get('/:id/stats', (req: Request<{ id: string }>, res: Response, next): vo
   }
 });
 
-router.post('/', (req, res: Response, next): void => {
+router.post('/', requireAuth, (req, res: Response, next): void => {
   try {
     const parsed = CreateQueueSchema.safeParse(req.body);
     if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
@@ -127,7 +128,7 @@ router.post('/', (req, res: Response, next): void => {
   }
 });
 
-router.post('/:id/advance', (req: Request<{ id: string }>, res: Response, next): void => {
+router.post('/:id/advance', requireAuth, (req: Request<{ id: string }>, res: Response, next): void => {
   try {
     const slugResult = SlugSchema.safeParse(req.params.id);
     if (!slugResult.success) throw new ValidationError('Invalid queue ID format');
@@ -143,7 +144,7 @@ router.post('/:id/advance', (req: Request<{ id: string }>, res: Response, next):
   }
 });
 
-router.post('/:id/close', (req: Request<{ id: string }>, res: Response, next): void => {
+router.post('/:id/close', requireAuth, (req: Request<{ id: string }>, res: Response, next): void => {
   try {
     const slugResult = SlugSchema.safeParse(req.params.id);
     if (!slugResult.success) throw new ValidationError('Invalid queue ID format');
@@ -156,7 +157,7 @@ router.post('/:id/close', (req: Request<{ id: string }>, res: Response, next): v
   }
 });
 
-router.post('/:id/open-enrollment', (req: Request<{ id: string }>, res: Response, next): void => {
+router.post('/:id/open-enrollment', requireAuth, (req: Request<{ id: string }>, res: Response, next): void => {
   try {
     const slugResult = SlugSchema.safeParse(req.params.id);
     if (!slugResult.success) throw new ValidationError('Invalid queue ID format');
@@ -169,7 +170,7 @@ router.post('/:id/open-enrollment', (req: Request<{ id: string }>, res: Response
   }
 });
 
-router.post('/:id/close-enrollment', (req: Request<{ id: string }>, res: Response, next): void => {
+router.post('/:id/close-enrollment', requireAuth, (req: Request<{ id: string }>, res: Response, next): void => {
   try {
     const slugResult = SlugSchema.safeParse(req.params.id);
     if (!slugResult.success) throw new ValidationError('Invalid queue ID format');
