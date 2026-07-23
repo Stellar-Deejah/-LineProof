@@ -1,33 +1,11 @@
 import { Router, type IRouter, Request, Response } from 'express';
-import { z } from 'zod';
 import { listQueues, getQueueById, createQueue, advanceQueue, closeQueue, getQueueStats, openEnrollment, closeEnrollment } from '../services/queueService.js';
 import { readQueueOnChain } from '../contracts/index.js';
 import { SlugSchema } from '../schemas/slug.js';
+import { AdvanceSchema, CreateQueueSchema, GetQueuesQuerySchema } from '../schemas/api.js';
 import { NotFoundError, ValidationError } from '../errors/index.js';
 
 const router: IRouter = Router();
-
-const CreateQueueSchema = z.object({
-  name: z.string().min(1).max(120),
-  slug: z.string().min(1).max(120),
-  maxPositions: z.number().int().positive(),
-  advancementRule: z.enum(['FIFO', 'Priority', 'VerifiableRandomness']).optional(),
-  escrowRequired: z.boolean().optional(),
-  description: z.string().max(500).optional(),
-});
-
-const AdvanceSchema = z.object({
-  batchSize: z.number().int().positive().max(1000).optional(),
-});
-
-const GetQueuesQuerySchema = z.object({
-  status: z.string().optional(),
-  limit: z.preprocess(
-    (val) => (val === undefined ? undefined : Number(val)),
-    z.number().int().min(1).max(100).default(20)
-  ),
-  cursor: z.string().optional(),
-});
 
 router.get('/', (req, res: Response): Response => {
   const queryResult = GetQueuesQuerySchema.safeParse(req.query);
@@ -120,7 +98,13 @@ router.post('/', (req, res: Response, next): void => {
   try {
     const parsed = CreateQueueSchema.safeParse(req.body);
     if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
-    const queue = createQueue(parsed.data);
+    const { advancementRule, escrowRequired, description, ...required } = parsed.data;
+    const queue = createQueue({
+      ...required,
+      ...(advancementRule !== undefined ? { advancementRule } : {}),
+      ...(escrowRequired !== undefined ? { escrowRequired } : {}),
+      ...(description !== undefined ? { description } : {}),
+    });
     res.status(201).json(queue);
   } catch (err) {
     next(err);

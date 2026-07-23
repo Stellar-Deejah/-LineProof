@@ -13,6 +13,8 @@ import { requestId } from './middleware/requestId.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { register, METRICS_CONTENT_TYPE } from './metrics/registry.js';
 import { healthPayload } from './health.js';
+import swaggerUi from 'swagger-ui-express';
+import { openApiDocument } from './openapi.js';
 
 export function createApp(): Express {
   const app: Express = express();
@@ -49,6 +51,19 @@ export function createApp(): Express {
   app.get('/health', (req, res) => {
     res.json(healthPayload());
   });
+
+  app.get('/api/openapi.json', (_req, res) => {
+    res.json(openApiDocument);
+  });
+  if (process.env.NODE_ENV !== 'production') {
+    app.use(
+      '/api/docs',
+      swaggerUi.serve,
+      swaggerUi.setup(openApiDocument, {
+        customSiteTitle: 'LineProof API Documentation',
+      }),
+    );
+  }
 
   app.use('/api/queues', queueRoutes);
   app.use('/api/enrollments', writeRateLimiter, enrollmentRoutes);

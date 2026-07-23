@@ -9,6 +9,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- [backend] OpenAPI 3.1 contract, development Swagger UI, and CI drift detection
 - [contracts/escrow] `get_total_held` function tracking running deposit totals per queue
 - [contracts/escrow] `Expired` status now correctly persisted in `expire()` and guarded against non-Active records
 - [contracts/queue] `enroll_position` with capacity enforcement, `cancel_position`, and `total_enrolled`

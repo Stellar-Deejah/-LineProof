@@ -62,6 +62,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build SDK (backend imports @lineproof/sdk)
         run: pnpm --filter @lineproof/sdk build
+      - name: Check generated OpenAPI contract
+        run: pnpm --filter @lineproof/backend openapi:check
       - name: Run backend tests
         run: pnpm --filter @lineproof/backend test
 

@@ -1,0 +1,1075 @@
+components:
+  parameters: {}
+  schemas:
+    AdvanceQueue:
+      properties:
+        batchSize:
+          exclusiveMinimum: 0
+          maximum: 1000
+          type: integer
+      type: object
+    CancelEnrollment:
+      properties:
+        identity:
+          pattern: ^G[A-Z2-7]{55}$
+          type: string
+        queueId:
+          minLength: 1
+          type: string
+      required:
+        - queueId
+        - identity
+      type: object
+    CreateQueue:
+      properties:
+        advancementRule:
+          enum:
+            - FIFO
+            - Priority
+            - VerifiableRandomness
+          type: string
+        description:
+          maxLength: 500
+          type: string
+        escrowRequired:
+          type: boolean
+        maxPositions:
+          exclusiveMinimum: 0
+          type: integer
+        name:
+          maxLength: 120
+          minLength: 1
+          type: string
+        slug:
+          maxLength: 120
+          minLength: 1
+          pattern: ^[a-z0-9-]+$
+          type: string
+      required:
+        - name
+        - slug
+        - maxPositions
+      type: object
+    Deposit:
+      properties:
+        amount:
+          exclusiveMinimum: 0
+          type: number
+        asset:
+          minLength: 1
+          type: string
+        holdDays:
+          exclusiveMinimum: 0
+          type: integer
+        identity:
+          pattern: ^G[A-Z2-7]{55}$
+          type: string
+        queueId:
+          minLength: 1
+          type: string
+      required:
+        - queueId
+        - identity
+        - amount
+        - asset
+      type: object
+    Enroll:
+      properties:
+        identity:
+          pattern: ^G[A-Z2-7]{55}$
+          type: string
+        queueId:
+          minLength: 1
+          type: string
+      required:
+        - queueId
+        - identity
+      type: object
+    EnrollmentRecord:
+      properties:
+        cancelled:
+          type: boolean
+        conflict:
+          type: boolean
+        enrolledAt:
+          format: date-time
+          type: string
+        identity:
+          pattern: ^G[A-Z2-7]{55}$
+          type: string
+        queueId:
+          type: string
+      required:
+        - queueId
+        - identity
+        - enrolledAt
+        - conflict
+        - cancelled
+      type: object
+    Error:
+      properties:
+        error:
+          properties:
+            message:
+              type: string
+            path:
+              type: string
+            requestId:
+              type: string
+            status:
+              type: integer
+            timestamp:
+              format: date-time
+              type: string
+          required:
+            - message
+            - status
+            - path
+            - timestamp
+          type: object
+      required:
+        - error
+      type: object
+    EscrowAction:
+      properties:
+        escrowId:
+          minLength: 1
+          type: string
+      required:
+        - escrowId
+      type: object
+    EscrowRecord:
+      properties:
+        amount:
+          exclusiveMinimum: 0
+          type: number
+        asset:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        expiresAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        identity:
+          pattern: ^G[A-Z2-7]{55}$
+          type: string
+        queueId:
+          type: string
+        releasedAt:
+          format: date-time
+          type: string
+        status:
+          enum:
+            - Active
+            - Released
+            - Refunded
+            - Expired
+          type: string
+      required:
+        - id
+        - queueId
+        - identity
+        - amount
+        - asset
+        - status
+        - createdAt
+        - expiresAt
+      type: object
+    Health:
+      properties:
+        environment:
+          type: string
+        status:
+          enum:
+            - ok
+          type: string
+        timestamp:
+          format: date-time
+          type: string
+      required:
+        - status
+        - timestamp
+        - environment
+      type: object
+    PublicQueueList:
+      items:
+        properties:
+          advancementRule:
+            type: string
+          advancementRuleImplemented:
+            type: boolean
+          enrolled:
+            minimum: 0
+            type: integer
+          id:
+            type: string
+          maxPositions:
+            exclusiveMinimum: 0
+            type: integer
+          name:
+            type: string
+          slug:
+            type: string
+          status:
+            enum:
+              - Draft
+              - EnrollmentOpen
+              - EnrollmentClosed
+              - AdvancementActive
+              - Closed
+            type: string
+        required:
+          - id
+          - name
+          - slug
+          - status
+          - enrolled
+          - maxPositions
+          - advancementRule
+          - advancementRuleImplemented
+        type: object
+      type: array
+    PublicQueueStats:
+      properties:
+        advanced:
+          minimum: 0
+          type: integer
+        percentAdvanced:
+          maximum: 100
+          minimum: 0
+          type: number
+        queueId:
+          type: string
+        remaining:
+          minimum: 0
+          type: integer
+        total:
+          minimum: 0
+          type: integer
+      required:
+        - queueId
+        - total
+        - advanced
+        - remaining
+        - percentAdvanced
+      type: object
+    Queue:
+      properties:
+        advanced:
+          minimum: 0
+          type: integer
+        advancementRule:
+          enum:
+            - FIFO
+            - Priority
+            - VerifiableRandomness
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        enrolled:
+          minimum: 0
+          type: integer
+        escrowAmount:
+          minimum: 0
+          type: number
+        escrowAsset:
+          type: string
+        id:
+          type: string
+        maxPositions:
+          exclusiveMinimum: 0
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        status:
+          enum:
+            - Draft
+            - EnrollmentOpen
+            - EnrollmentClosed
+            - AdvancementActive
+            - Closed
+          type: string
+      required:
+        - id
+        - name
+        - slug
+        - description
+        - maxPositions
+        - enrolled
+        - advanced
+        - status
+        - advancementRule
+        - escrowAsset
+        - escrowAmount
+        - createdAt
+      type: object
+    QueueStats:
+      properties:
+        advanced:
+          minimum: 0
+          type: integer
+        percentAdvanced:
+          maximum: 100
+          minimum: 0
+          type: number
+        queueId:
+          type: string
+        remaining:
+          minimum: 0
+          type: integer
+        total:
+          minimum: 0
+          type: integer
+      required:
+        - queueId
+        - total
+        - advanced
+        - remaining
+        - percentAdvanced
+      type: object
+info:
+  description: HTTP contract for queue, enrollment, and escrow integrations.
+  title: LineProof Backend API
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /api/docs:
+    get:
+      responses:
+        "200":
+          content:
+            text/html:
+              schema:
+                type: string
+          description: Swagger UI HTML
+        "404":
+          description: Disabled in production
+      summary: Browse Swagger UI (non-production only)
+      tags:
+        - System
+  /api/enrollments/cancel:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelEnrollment"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                required:
+                  - message
+                type: object
+          description: Enrollment cancelled
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+      summary: Cancel an enrollment
+      tags:
+        - Enrollments
+  /api/enrollments/enroll:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Enroll"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrollmentRecord"
+          description: Enrollment created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource conflict
+      summary: Enroll an identity
+      tags:
+        - Enrollments
+  /api/enrollments/queue/{queueId}:
+    get:
+      parameters:
+        - in: path
+          name: queueId
+          required: true
+          schema:
+            minLength: 1
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/EnrollmentRecord"
+                type: array
+          description: Queue enrollment records
+      summary: List queue enrollments
+      tags:
+        - Enrollments
+  /api/enrollments/{identity}:
+    get:
+      parameters:
+        - in: path
+          name: identity
+          required: true
+          schema:
+            pattern: ^G[A-Z2-7]{55}$
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/EnrollmentRecord"
+                type: array
+          description: Identity enrollment records
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+      summary: List identity enrollments
+      tags:
+        - Enrollments
+  /api/escrow/deposit:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Deposit"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscrowRecord"
+          description: Escrow created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource conflict
+      summary: Create an escrow deposit
+      tags:
+        - Escrow
+  /api/escrow/expire:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EscrowAction"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscrowRecord"
+          description: Updated escrow
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Escrow is not ready to expire
+      summary: Expire an escrow
+      tags:
+        - Escrow
+  /api/escrow/refund:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EscrowAction"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscrowRecord"
+          description: Updated escrow
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Escrow is not ready to expire
+      summary: Refund an escrow
+      tags:
+        - Escrow
+  /api/escrow/release:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EscrowAction"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscrowRecord"
+          description: Updated escrow
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Escrow is not ready to expire
+      summary: Release an escrow
+      tags:
+        - Escrow
+  /api/escrow/{id}:
+    get:
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            minLength: 1
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscrowRecord"
+          description: Escrow record
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+      summary: Get an escrow record
+      tags:
+        - Escrow
+  /api/openapi.json:
+    get:
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties: {}
+                type: object
+          description: Machine-readable API contract
+      summary: Read the OpenAPI 3.1 document
+      tags:
+        - System
+  /api/queues:
+    get:
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+        - in: query
+          name: cursor
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    items:
+                      $ref: "#/components/schemas/Queue"
+                    type: array
+                  nextCursor:
+                    type:
+                      - string
+                      - "null"
+                  total:
+                    minimum: 0
+                    type: integer
+                required:
+                  - items
+                  - nextCursor
+                  - total
+                type: object
+          description: Paginated queue list
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+      summary: List queues
+      tags:
+        - Queues
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQueue"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+          description: Queue created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource conflict
+      summary: Create a queue
+      tags:
+        - Queues
+  /api/queues/{id}:
+    get:
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            example: sneaker-drop-001
+            maxLength: 120
+            minLength: 1
+            pattern: ^[a-z0-9-]+$
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Queue"
+                  - properties:
+                      source:
+                        enum:
+                          - on-chain
+                          - in-memory
+                        type: string
+                    required:
+                      - source
+                    type: object
+          description: Queue record and data source
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+      summary: Get a queue
+      tags:
+        - Queues
+  /api/queues/{id}/advance:
+    post:
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            example: sneaker-drop-001
+            maxLength: 120
+            minLength: 1
+            pattern: ^[a-z0-9-]+$
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdvanceQueue"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+          description: Advanced queue
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource conflict
+      summary: Advance queue positions
+      tags:
+        - Queues
+  /api/queues/{id}/close:
+    post:
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            example: sneaker-drop-001
+            maxLength: 120
+            minLength: 1
+            pattern: ^[a-z0-9-]+$
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+          description: Updated queue
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource conflict
+      summary: Close a queue
+      tags:
+        - Queues
+  /api/queues/{id}/close-enrollment:
+    post:
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            example: sneaker-drop-001
+            maxLength: 120
+            minLength: 1
+            pattern: ^[a-z0-9-]+$
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+          description: Updated queue
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource conflict
+      summary: Close queue enrollment
+      tags:
+        - Queues
+  /api/queues/{id}/open-enrollment:
+    post:
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            example: sneaker-drop-001
+            maxLength: 120
+            minLength: 1
+            pattern: ^[a-z0-9-]+$
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+          description: Updated queue
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource conflict
+      summary: Open queue enrollment
+      tags:
+        - Queues
+  /api/queues/{id}/stats:
+    get:
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            example: sneaker-drop-001
+            maxLength: 120
+            minLength: 1
+            pattern: ^[a-z0-9-]+$
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueStats"
+          description: Queue statistics
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+      summary: Get queue statistics
+      tags:
+        - Queues
+  /health:
+    get:
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+          description: Backend is healthy
+      summary: Check backend health
+      tags:
+        - System
+  /metrics:
+    get:
+      responses:
+        "200":
+          content:
+            text/plain:
+              schema:
+                type: string
+          description: Prometheus text exposition
+      summary: Read Prometheus metrics
+      tags:
+        - System
+  /public/health:
+    get:
+      responses:
+        "301":
+          description: Permanent redirect to /health
+          headers:
+            Location:
+              schema:
+                example: /health
+                type: string
+      summary: Redirect to the canonical health endpoint
+      tags:
+        - System
+  /public/queues:
+    get:
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicQueueList"
+          description: Public queue summaries
+      summary: List public queue summaries
+      tags:
+        - Public
+  /public/queues/{id}/stats:
+    get:
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            example: sneaker-drop-001
+            maxLength: 120
+            minLength: 1
+            pattern: ^[a-z0-9-]+$
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicQueueStats"
+          description: Public queue statistics
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Resource not found
+      summary: Get public queue statistics
+      tags:
+        - Public
+servers:
+  - description: Local development
+    url: http://localhost:4000
+tags:
+  - name: Queues
+  - name: Enrollments
+  - name: Escrow
+  - name: Public
+  - name: System
+webhooks: {}

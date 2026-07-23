@@ -2,6 +2,13 @@
 
 This guide walks through integrating LineProof into your application.
 
+The machine-readable HTTP contract is available in
+[`docs/api-reference/openapi.yaml`](api-reference/openapi.yaml). In local and
+staging environments, browse the interactive Swagger UI at `/api/docs` or fetch
+the current JSON document from `/api/openapi.json`. See the
+[API reference maintenance guide](api-reference/README.md) for the schema
+registration pattern, local preview, drift checks, and versioning policy.
+
 ## Prerequisites
 
 1. **Stellar Account**: Create or use an existing Stellar keypair

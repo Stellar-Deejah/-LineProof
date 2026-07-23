@@ -75,17 +75,20 @@ export function loadConfig(
   const contractsConfigured = Object.values(contractIds).some((id) =>
     Boolean(id),
   );
+  const databaseUrl = env.DATABASE_URL?.trim() || undefined;
+  const networkPassphrase = env.NETWORK_PASSPHRASE?.trim() || undefined;
+  const operatorSecretKey = env.OPERATOR_SECRET_KEY?.trim() || undefined;
 
   return {
     nodeEnv: env.NODE_ENV ?? "development",
     port: env.PORT ? Number(env.PORT) : 4000,
-    databaseUrl: env.DATABASE_URL?.trim() || undefined,
+    ...(databaseUrl ? { databaseUrl } : {}),
     sorobanRpcUrl:
       env.SOROBAN_RPC_URL?.trim() ||
       (contractsConfigured ? "" : "https://soroban-testnet.stellar.org"),
     stellarNetwork: env.STELLAR_NETWORK?.trim() || "TESTNET",
-    networkPassphrase: env.NETWORK_PASSPHRASE?.trim() || undefined,
-    operatorSecretKey: env.OPERATOR_SECRET_KEY?.trim() || undefined,
+    ...(networkPassphrase ? { networkPassphrase } : {}),
+    ...(operatorSecretKey ? { operatorSecretKey } : {}),
     contractIds,
     contractsConfigured,
   };
