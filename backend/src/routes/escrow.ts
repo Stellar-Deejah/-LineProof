@@ -3,32 +3,10 @@ import { z } from 'zod';
 import { depositEscrow, releaseEscrow, refundEscrow, expireEscrow, getEscrow } from '../services/escrowService.js';
 import { recordEscrowDeposit, recordEscrowClosed } from '../metrics/registry.js';
 import { validateStellarAddress } from '../middleware/validateStellarAddress.js';
-import { StellarAddress } from '../schemas/stellar.js';
+import { DepositSchema, EscrowActionSchema } from '../schemas/api.js';
 import { NotFoundError, ValidationError } from '../errors/index.js';
 
 const router: IRouter = Router();
-
-const DepositSchema = z.object({
-  queueId: z.string().min(1),
-  identity: StellarAddress,
-  amount: z.number().positive(),
-  asset: z.string().min(1),
-  holdDays: z.number().int().positive().optional(),
-});
-
-const EscrowActionSchema = z.object({
-  escrowId: z.string().min(1).refine(
-    (value) => {
-      const parts = value.split(':');
-      if (parts.length !== 2) return false;
-      const identity = parts[1];
-      return /^G[A-Z2-7]{55}$/.test(identity);
-    },
-    {
-      message: 'Invalid escrowId format. Must be ${queueId}:${identity} where identity is a valid Stellar address.',
-    }
-  ),
-});
 
 type DepositInput = z.infer<typeof DepositSchema>;
 type EscrowActionInput = z.infer<typeof EscrowActionSchema>;

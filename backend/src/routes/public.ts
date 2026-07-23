@@ -31,15 +31,11 @@ router.get('/queues/:id/stats', (req, res, next) => {
   try {
     const stats = getQueueStats(req.params.id);
     if (!stats) throw new NotFoundError('Queue not found');
-    res.json(stats);
+    const validatedStats = PublicQueueStatsSchema.parse(stats);
+    res.json(validatedStats);
   } catch (err) {
     next(err);
   }
-router.get('/queues/:id/stats', (req, res) => {
-  const stats = getQueueStats(req.params.id);
-  if (!stats) return res.status(404).json({ message: 'Queue not found' });
-  const validatedStats = PublicQueueStatsSchema.parse(stats);
-  res.json(validatedStats);
 });
 
 /**
