@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
-import { app } from '../../app.js';
+import { createApp } from '../../app.js';
 import * as queueService from '../../services/queueService.js';
 import { readQueueOnChain } from '../../contracts/index.js';
+
+const app = createApp();
 
 vi.mock('../../services/queueService.js');
 vi.mock('../../contracts/index.js');
@@ -20,7 +22,7 @@ describe('Queues Routes', () => {
         { id: 'q2', slug: 'q2', status: 'Draft' },
       ];
       vi.mocked(queueService.listQueues).mockReturnValue(mockList as any);
-      
+
       const res = await request(app).get('/api/queues?limit=1');
       expect(res.status).toBe(200);
       expect(res.body).toEqual({
@@ -69,7 +71,7 @@ describe('Queues Routes', () => {
         { id: 'q2', slug: 'q2', status: 'Closed' },
       ];
       vi.mocked(queueService.listQueues).mockReturnValue(mockList as any);
-      
+
       const res = await request(app).get('/api/queues?status=Open');
       expect(res.status).toBe(200);
       expect(res.body.items).toEqual([{ id: 'q1', slug: 'q1', status: 'Open' }]);
@@ -85,7 +87,10 @@ describe('Queues Routes', () => {
     });
 
     it('returns 200 with queue if found', async () => {
-      vi.mocked(queueService.getQueueById).mockReturnValue({ id: 'q1', slug: 'q1' } as any);
+      vi.mocked(queueService.getQueueById).mockReturnValue({
+        id: 'q1',
+        slug: 'q1',
+      } as any);
       const res = await request(app).get('/api/queues/q1');
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ id: 'q1', slug: 'q1', source: 'in-memory' });
@@ -100,13 +105,16 @@ describe('Queues Routes', () => {
     });
 
     it('returns 201 on success', async () => {
-      vi.mocked(queueService.createQueue).mockReturnValue({ id: 'q1', slug: 'q1' } as any);
+      vi.mocked(queueService.createQueue).mockReturnValue({
+        id: 'q1',
+        slug: 'q1',
+      } as any);
       const res = await request(app).post('/api/queues').send({
         name: 'q1',
         slug: 'q1',
         description: 'desc',
         maxPositions: 10,
-        advancementRule: 'FIFO'
+        advancementRule: 'FIFO',
       });
       expect(res.status).toBe(201);
       expect(res.body).toEqual({ id: 'q1', slug: 'q1' });

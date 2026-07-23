@@ -11,18 +11,15 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { defaultRateLimiter, writeRateLimiter } from './middleware/rateLimiter.js';
 import { requestId } from './middleware/requestId.js';
 import { requestLogger } from './middleware/requestLogger.js';
+import { corsOriginsFromEnvironment, createCorsOptions } from './middleware/corsConfig.js';
 import { register, METRICS_CONTENT_TYPE } from './metrics/registry.js';
 import { healthPayload } from './health.js';
 
-export function createApp(): Express {
+export function createApp(allowedOrigins: string[] = corsOriginsFromEnvironment()): Express {
   const app: Express = express();
 
-  const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173')
-    .split(',')
-    .map((o) => o.trim());
-
   app.use(helmet());
-  app.use(cors({ origin: allowedOrigins }));
+  app.use(cors(createCorsOptions(allowedOrigins)));
   app.use(requestId);
 
   // GET /metrics is mounted before logging and rate limiting so scrapes are never
@@ -56,8 +53,6 @@ export function createApp(): Express {
   app.use('/public', publicRoutes);
 
   app.use(errorHandler);
-  
+
   return app;
 }
-
-export const app = createApp();

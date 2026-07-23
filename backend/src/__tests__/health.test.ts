@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
-import { app } from '../app.js';
+import { createApp } from '../app.js';
 import { healthPayload } from '../health.js';
+
+const app = createApp();
 
 describe('healthPayload & health routes', () => {
   it('returns the canonical health shape', () => {
