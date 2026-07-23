@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Keypair } from '@stellar/stellar-sdk';
+import { Keypair, StrKey } from '@stellar/stellar-sdk';
 import {
   SDKError,
   validateAddress,
@@ -46,16 +46,29 @@ describe('validateAddress', () => {
 
 describe('validateContractId', () => {
   it('does not throw for a valid Stellar contract ID starting with C', () => {
-    // 56 characters valid StrKey C-address
-    const validContractId = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAF4H';
+    const validContractId = StrKey.encodeContract(Buffer.alloc(32));
     expect(() => validateContractId(validContractId)).not.toThrow();
+    expect(validContractId.startsWith('C')).toBe(true);
+    expect(validContractId.length).toBe(56);
   });
 
   it('throws SDKError("INVALID_CONTRACT_ID") for G-prefixed address', () => {
-    const pubKey = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+    const pubKey = Keypair.random().publicKey();
+    expect(pubKey.startsWith('G')).toBe(true);
     expect(() => validateContractId(pubKey)).toThrow(SDKError);
     try {
       validateContractId(pubKey);
+    } catch (err: any) {
+      expect(err.code).toBe('INVALID_CONTRACT_ID');
+    }
+  });
+
+  it('throws SDKError("INVALID_CONTRACT_ID") for S-prefixed secret key', () => {
+    const secretKey = Keypair.random().secret();
+    expect(secretKey.startsWith('S')).toBe(true);
+    expect(() => validateContractId(secretKey)).toThrow(SDKError);
+    try {
+      validateContractId(secretKey);
     } catch (err: any) {
       expect(err.code).toBe('INVALID_CONTRACT_ID');
     }
