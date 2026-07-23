@@ -8,7 +8,7 @@ import enrollmentRoutes from './routes/enrollments.js';
 import escrowRoutes from './routes/escrow.js';
 import publicRoutes from './routes/public.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { defaultRateLimiter, writeRateLimiter } from './middleware/rateLimiter.js';
+import { readLimiter, enrollmentLimiter, escrowLimiter } from './middleware/rateLimiter.js';
 import { requestId } from './middleware/requestId.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { register, METRICS_CONTENT_TYPE } from './metrics/registry.js';
@@ -44,16 +44,21 @@ export function createApp(): Express {
     app.use(morgan('dev'));
   }
   app.use(requestLogger);
-  app.use(defaultRateLimiter);
 
+  // /health is mounted before any rate limiter so uptime monitors and incident
+  // responders are never throttled — a 429 here would falsely report the
+  // service as down during the exact moments it is polled hardest (issue #108).
   app.get('/health', (req, res) => {
     res.json(healthPayload());
   });
 
-  app.use('/api/queues', queueRoutes);
-  app.use('/api/enrollments', writeRateLimiter, enrollmentRoutes);
-  app.use('/api/escrow', writeRateLimiter, escrowRoutes);
-  app.use('/public', publicRoutes);
+  // Per-route limiters replace the former global limiter so a burst on one
+  // route group cannot exhaust the quota of another (issue #108). Read feeds
+  // get a high threshold; each write group has its own independent counter.
+  app.use('/api/queues', readLimiter, queueRoutes);
+  app.use('/api/enrollments', enrollmentLimiter, enrollmentRoutes);
+  app.use('/api/escrow', escrowLimiter, escrowRoutes);
+  app.use('/public', readLimiter, publicRoutes);
 
   app.use(errorHandler);
   
