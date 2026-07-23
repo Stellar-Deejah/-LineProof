@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
-import { app } from '../../app.js';
+import { createApp } from '../../app.js';
 import * as queueService from '../../services/queueService.js';
 import { QueueStatus } from '../../schemas/queueStatus.js';
+
+const app = createApp();
 
 vi.mock('../../services/queueService.js');
 

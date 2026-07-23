@@ -1,14 +1,15 @@
 import 'dotenv/config';
-import { app } from './app.js';
+import { createApp } from './app.js';
 import { config, validateStartupConfig } from './config.js';
 import { lineproofClient } from './contracts/lineproofClient.js';
+import { corsOriginsFromEnvironment } from './middleware/corsConfig.js';
 import { EventIndexer } from './services/eventIndexer.js';
 
 validateStartupConfig(config);
+const allowedOrigins = corsOriginsFromEnvironment();
+const app = createApp(allowedOrigins);
 console.log(
-  lineproofClient
-    ? `[contracts] configured mode (${lineproofClient.canWrite ? 'read/write' : 'read-only; OPERATOR_SECRET_KEY absent'})`
-    : '[contracts] mock mode (no contract IDs configured)',
+  lineproofClient ? `[contracts] configured mode (${lineproofClient.canWrite ? 'read/write' : 'read-only; OPERATOR_SECRET_KEY absent'})` : '[contracts] mock mode (no contract IDs configured)',
 );
 
 // Contract event indexer (issue #31). Runs only when contract IDs are
@@ -17,9 +18,7 @@ console.log(
 let eventIndexer: EventIndexer | undefined;
 if (config.contractsConfigured) {
   eventIndexer = new EventIndexer({
-    contractIds: Object.values(config.contractIds).filter((id): id is string =>
-      Boolean(id),
-    ),
+    contractIds: Object.values(config.contractIds).filter((id): id is string => Boolean(id)),
   });
   eventIndexer.start();
 }

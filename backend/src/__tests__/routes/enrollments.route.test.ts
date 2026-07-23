@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
-import { app } from '../../app.js';
+import { createApp } from '../../app.js';
 import * as enrollmentService from '../../services/enrollmentService.js';
+
+const app = createApp();
 
 vi.mock('../../services/enrollmentService.js');
 
@@ -18,14 +20,20 @@ describe('Enrollments Routes', () => {
     });
 
     it('returns 409 on conflict', async () => {
-      vi.mocked(enrollmentService.enroll).mockReturnValue({ success: false, conflict: true } as any);
+      vi.mocked(enrollmentService.enroll).mockReturnValue({
+        success: false,
+        conflict: true,
+      } as any);
       const res = await request(app).post('/api/enrollments').send({ queueId: 'q1', identity: 'GB123' });
       expect(res.status).toBe(409);
       expect(res.body.conflict).toBe(true);
     });
 
     it('returns 201 on success', async () => {
-      vi.mocked(enrollmentService.enroll).mockReturnValue({ success: true, record: { id: 'r1' } } as any);
+      vi.mocked(enrollmentService.enroll).mockReturnValue({
+        success: true,
+        record: { id: 'r1' },
+      } as any);
       const res = await request(app).post('/api/enrollments').send({ queueId: 'q1', identity: 'GB123' });
       expect(res.status).toBe(201);
       expect(res.body.record.id).toBe('r1');
