@@ -1,4 +1,5 @@
 import { defaultMemoryAdapter } from '../storage/index.js';
+import { serviceEmitter } from './eventEmitter.js';
 
 export type EnrollmentRecord = {
   queueId: string;
@@ -37,6 +38,7 @@ export const enrollIdentity = (queueId: string, identity: string): EnrollmentRec
   queueSet.add(identity);
   store.set<Set<string>>(NS_QUEUE_INDEX, queueId, queueSet);
 
+  serviceEmitter.emit('enrollment.created', record);
   return record;
 };
 
@@ -52,6 +54,7 @@ export const cancelEnrollment = (queueId: string, identity: string): boolean => 
     queueSet.delete(identity);
     store.set<Set<string>>(NS_QUEUE_INDEX, queueId, queueSet);
   }
+  serviceEmitter.emit('enrollment.cancelled', { queueId, identity });
   return true;
 };
 

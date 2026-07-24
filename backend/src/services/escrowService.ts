@@ -1,4 +1,5 @@
 import { defaultMemoryAdapter } from '../storage/index.js';
+import { serviceEmitter } from './eventEmitter.js';
 
 export type EscrowStatus = 'Active' | 'Released' | 'Refunded' | 'Expired';
 
@@ -48,6 +49,7 @@ export const depositEscrow = (payload: {
     expiresAt: expiresAt.toISOString(),
   };
   store.set<EscrowRecord>(NS, id, record);
+  serviceEmitter.emit('escrow.deposited', record);
   return record;
 };
 
@@ -62,6 +64,7 @@ export const releaseEscrow = (escrowId: string): EscrowRecord | undefined => {
   record.status = 'Released';
   record.releasedAt = new Date().toISOString();
   store.set<EscrowRecord>(NS, escrowId, record);
+  serviceEmitter.emit('escrow.released', record);
   return record;
 };
 
@@ -76,6 +79,7 @@ export const refundEscrow = (escrowId: string): EscrowRecord | undefined => {
   record.status = 'Refunded';
   record.releasedAt = new Date().toISOString();
   store.set<EscrowRecord>(NS, escrowId, record);
+  serviceEmitter.emit('escrow.refunded', record);
   return record;
 };
 
@@ -96,6 +100,7 @@ export const expireEscrow = (escrowId: string): EscrowRecord | undefined => {
   record.status = 'Expired';
   record.releasedAt = now.toISOString();
   store.set<EscrowRecord>(NS, escrowId, record);
+  serviceEmitter.emit('escrow.expired', record);
   return record;
 };
 

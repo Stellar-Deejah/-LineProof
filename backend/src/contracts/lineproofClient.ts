@@ -39,7 +39,7 @@ export function createLineProofClient(
   const client = new LineProofClient({
     rpcServerUrl: value.sorobanRpcUrl,
     networkPassphrase: value.networkPassphrase,
-    privateKey: value.operatorSecretKey,
+    ...(value.operatorSecretKey ? { privateKey: value.operatorSecretKey } : {}),
   });
   return {
     client,
@@ -86,7 +86,7 @@ export const submitEnrollment = (
 ): Promise<string> => {
   const sdk = requireWriter();
   return submit(() =>
-    sdk.enrollment.enroll(sdk.contractIds.enrollment, `${queueId}:${identity}`),
+    sdk.enrollment.enroll(sdk.contractIds.enrollment!, `${queueId}:${identity}`),
   );
 };
 
@@ -96,7 +96,7 @@ export const submitEscrowDeposit = (
 ): Promise<string> => {
   const sdk = requireWriter();
   return submit(() =>
-    sdk.escrow.deposit(sdk.contractIds.escrow, amount, asset),
+    sdk.escrow.deposit(sdk.contractIds.escrow!, amount, asset),
   );
 };
 
@@ -119,7 +119,7 @@ export async function readEnrollmentOnChain(
   if (!lineproofClient) return undefined;
   try {
     return await lineproofClient.enrollment.isEnrolled(
-      lineproofClient.contractIds.enrollment,
+      lineproofClient.contractIds.enrollment!,
       identity,
     );
   } catch {
