@@ -10,6 +10,13 @@ describe("backend Soroban client configuration", () => {
     const value = loadConfig({ NODE_ENV: "test" });
     expect(() => validateStartupConfig(value)).not.toThrow();
     expect(createLineProofClient(value)).toBeUndefined();
+    expect(value.shutdownTimeoutMs).toBe(30_000);
+  });
+
+  it("loads a positive shutdown timeout and rejects unsafe values", () => {
+    expect(loadConfig({ SHUTDOWN_TIMEOUT_MS: "45000" }).shutdownTimeoutMs).toBe(45_000);
+    expect(loadConfig({ SHUTDOWN_TIMEOUT_MS: "-1" }).shutdownTimeoutMs).toBe(30_000);
+    expect(loadConfig({ SHUTDOWN_TIMEOUT_MS: "invalid" }).shutdownTimeoutMs).toBe(30_000);
   });
 
   it("fails fast when configured mode is incomplete", () => {

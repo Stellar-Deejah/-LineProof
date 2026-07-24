@@ -44,4 +44,5 @@ HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:4000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 USER lineproof
+STOPSIGNAL SIGTERM
 CMD ["node", "dist/index.js"]
