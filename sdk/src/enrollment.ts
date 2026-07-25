@@ -6,29 +6,12 @@ import {
 import { LineProofClient } from "./client.js";
 import { SDKError } from "./types.js";
 import { OnRetryFn } from "./utils.js";
-  Address,
-} from '@stellar/stellar-sdk';
-import { LineProofClient } from './client.js';
-import { SDKError, validateContractId } from './types.js';
-
-export type EnrollmentClientOptions = {
-  contractId?: string;
-};
-import { SDKError } from './types.js';
 
 export class EnrollmentClient {
   private readonly client: LineProofClient;
-  private readonly contractId?: string;
 
-  constructor(client: LineProofClient, options?: EnrollmentClientOptions | string) {
+  constructor(client: LineProofClient) {
     this.client = client;
-    if (typeof options === 'string') {
-      validateContractId(options);
-      this.contractId = options;
-    } else if (options?.contractId) {
-      validateContractId(options.contractId);
-      this.contractId = options.contractId;
-    }
   }
 
   /**
@@ -36,13 +19,10 @@ export class EnrollmentClient {
    * @param onRetry  Optional observer for retry attempts
    */
   async enroll(queueId: string, _identity: string, onRetry?: OnRetryFn): Promise<string> {
-  async enroll(queueId: string, _identity: string): Promise<string> {
-    const targetId = queueId || this.contractId || '';
-    validateContractId(targetId);
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
-        contract: targetId,
-        function: 'enroll',
+        contract: queueId,
+        function: "enroll",
         args: [],
       }),
       onRetry,
@@ -54,13 +34,10 @@ export class EnrollmentClient {
    * @param onRetry  Optional observer for retry attempts
    */
   async cancel(queueId: string, _identity: string, onRetry?: OnRetryFn): Promise<string> {
-  async cancel(queueId: string, _identity: string): Promise<string> {
-    const targetId = queueId || this.contractId || '';
-    validateContractId(targetId);
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
-        contract: targetId,
-        function: 'cancel',
+        contract: queueId,
+        function: "cancel",
         args: [],
       }),
       onRetry,
@@ -68,41 +45,15 @@ export class EnrollmentClient {
   }
 
   async isEnrolled(queueId: string, identity: string): Promise<boolean> {
-    const source = this.client.simulationSource();
-    const tx = new TransactionBuilder(source, {
-      fee: BASE_FEE,
-      networkPassphrase: this.client.getNetworkPassphrase(),
-    })
-      .addOperation(
-        Operation.invokeContractFunction({
-          contract: queueId,
-          function: "is_enrolled",
-          args: [xdr.ScVal.scvString(identity)],
-        }),
-      )
-      .setTimeout(30)
-      .build();
-
-    const simulateResult = await this.client.sorobanServer.simulateTransaction(tx);
-    if (!SorobanRpc.Api.isSimulationSuccess(simulateResult) || !simulateResult.result) {
-      throw new SDKError('SIMULATION_FAILED', 'Contract simulation returned no result');
-    }
-
-    const resultXdr = simulateResult.result.retval;
-    if (resultXdr.switch() !== xdr.ScValType.scvBool()) {
-      throw new SDKError('INVALID_RESPONSE', 'Expected Bool response from contract');
-    }
-    const targetId = queueId || this.contractId || '';
-    validateContractId(targetId);
-    const resultXdr = await this.client.simulateContractCall(targetId, 'is_enrolled', [
+    const resultXdr = await this.client.simulateContractCall(queueId, "is_enrolled", [
       new Address(identity).toScVal(),
-      xdr.ScVal.scvSymbol(targetId),
+      xdr.ScVal.scvSymbol(queueId),
     ]);
 
-    if (resultXdr.switch().name !== 'scvBool') {
+    if (resultXdr.switch().name !== "scvBool") {
       throw new SDKError(
-        'INVALID_RESPONSE',
-        'Expected Bool response from contract',
+        "INVALID_RESPONSE",
+        "Expected Bool response from contract",
       );
     }
 

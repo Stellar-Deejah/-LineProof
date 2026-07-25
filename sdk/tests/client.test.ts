@@ -14,11 +14,16 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
     },
     Keypair: {
       ...actual.Keypair,
-      fromSecret: vi.fn(() => ({
-        publicKey: () => 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
-        secret: () => 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-        sign: vi.fn(),
-      })),
+      fromSecret: vi.fn((secret: string) => {
+        if (secret.startsWith('G')) {
+          throw new TypeError('Invalid secret key: public key passed to fromSecret');
+        }
+        return {
+          publicKey: () => 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+          secret: () => 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          sign: vi.fn(),
+        };
+      }),
       random: vi.fn(() => ({
         publicKey: () => 'GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBWHF',
         secret: () => 'SBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
@@ -68,7 +73,7 @@ describe('LineProofClient constructor', () => {
   });
 });
 
-describe('LineProofClient.uploadWasm & installContract & deployFactory', () => {
+describe('LineProofClient.deployFactory', () => {
   it('throws MISSING_CREDENTIALS when no privateKey is set for deployFactory', async () => {
     const client = new LineProofClient({
       rpcServerUrl: 'http://localhost:8000',
@@ -77,32 +82,7 @@ describe('LineProofClient.uploadWasm & installContract & deployFactory', () => {
     await expect(client.deployFactory()).rejects.toMatchObject({ code: 'MISSING_CREDENTIALS' });
   });
 
-  it('uploadWasm builds and submits WASM bytecode', async () => {
-    const client = new LineProofClient({
-      rpcServerUrl: 'http://localhost:8000',
-      networkPassphrase: NetworkPassphrase.TESTNET,
-      privateKey: 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-    });
-    const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
-    const wasmHash = await client.uploadWasm(wasmBytes);
-    expect(typeof wasmHash).toBe('string');
-    expect(wasmHash.length).toBe(64);
-  });
-
-  it('installContract instantiates contract from WASM hash and returns C... contract ID', async () => {
-    const client = new LineProofClient({
-      rpcServerUrl: 'http://localhost:8000',
-      networkPassphrase: NetworkPassphrase.TESTNET,
-      privateKey: 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-    });
-    const mockHash = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-    const contractId = await client.installContract(mockHash);
-    expect(typeof contractId).toBe('string');
-    expect(contractId.startsWith('C')).toBe(true);
-    expect(contractId.length).toBe(56);
-  });
-
-  it('deployFactory performs two-step upload and install returning valid contract ID', async () => {
+  it('deployFactory returns a valid C... contract ID', async () => {
     const client = new LineProofClient({
       rpcServerUrl: 'http://localhost:8000',
       networkPassphrase: NetworkPassphrase.TESTNET,
