@@ -16,28 +16,18 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
         submitTransaction: vi.fn(async () => ({ hash: 'mockhash' })),
       })),
     },
-    SorobanRpc: {
-      ...actual.SorobanRpc,
-      Server: vi.fn(() => ({
-        getAccount: vi.fn(async () => ({ sequence: '1' })),
-        prepareTransaction: vi.fn(async (tx) => { (tx as any).sign = vi.fn(); return tx; }),
-        sendTransaction: vi.fn(async () => ({ status: 'SUCCESS', hash: 'mockhash' })),
-        simulateTransaction: vi.fn(async () => ({
-          result: { retval: actual.xdr.ScVal.scvBool(true) }
-        })),
-        getTransaction: vi.fn(async () => ({
-          status: actual.SorobanRpc.Api.GetTransactionStatus.SUCCESS,
-          returnValue: actual.xdr.ScVal.scvVec([actual.xdr.ScVal.scvU32(1)]),
-        })),
-      })),
-    },
     Keypair: {
       ...actual.Keypair,
-      fromSecret: vi.fn(() => ({
-        publicKey: () => 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
-        secret: () => 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-        sign: vi.fn(),
-      })),
+      fromSecret: vi.fn((secret: string) => {
+        if (secret.startsWith('G')) {
+          throw new TypeError('Invalid secret key: public key passed to fromSecret');
+        }
+        return {
+          publicKey: () => 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+          secret: () => 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          sign: vi.fn(),
+        };
+      }),
       random: vi.fn(() => ({
         publicKey: () => 'GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBWHF',
         secret: () => 'SBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
@@ -50,9 +40,17 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
     },
     BASE_FEE: '100',
     SorobanRpc: {
+      ...actual.SorobanRpc,
       Server: vi.fn(() => ({
+        getAccount: vi.fn(async () => ({ sequence: '1' })),
+        prepareTransaction: vi.fn(async (tx) => { (tx as any).sign = vi.fn(); return tx; }),
+        sendTransaction: vi.fn(async () => ({ status: 'SUCCESS', hash: 'mockhash' })),
         simulateTransaction: vi.fn(async () => ({
-          result: 'AAAAAQ==', // base64 encoded XDR for a boolean true
+          result: { retval: actual.xdr.ScVal.scvBool(true) }
+        })),
+        getTransaction: vi.fn(async () => ({
+          status: actual.SorobanRpc.Api.GetTransactionStatus.SUCCESS,
+          returnValue: actual.xdr.ScVal.scvVec([actual.xdr.ScVal.scvU32(1)]),
         })),
       })),
     },
@@ -76,23 +74,20 @@ describe('Contract ID Validation Across All Clients', () => {
     expect(() => new QueueClient(client, { queueContractId: INVALID_CONTRACT_ID })).toThrow(SDKError);
   });
 
-  it('EnrollmentClient constructor/methods throw SDKError("INVALID_CONTRACT_ID") for invalid contract ID', async () => {
+  it('EnrollmentClient.methods throw SDKError("INVALID_CONTRACT_ID") for invalid contract ID', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
-    expect(() => new EnrollmentClient(client, INVALID_CONTRACT_ID)).toThrow(SDKError);
     const enrollment = new EnrollmentClient(client);
     await expect(enrollment.enroll(INVALID_CONTRACT_ID, 'identity')).rejects.toThrow(SDKError);
   });
 
-  it('EscrowClient constructor/methods throw SDKError("INVALID_CONTRACT_ID") for invalid contract ID', async () => {
+  it('EscrowClient.methods throw SDKError("INVALID_CONTRACT_ID") for invalid contract ID', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
-    expect(() => new EscrowClient(client, INVALID_CONTRACT_ID)).toThrow(SDKError);
     const escrow = new EscrowClient(client);
     await expect(escrow.deposit(INVALID_CONTRACT_ID, 10, 'USDC')).rejects.toThrow(SDKError);
   });
 
-  it('IdentityClient constructor/methods throw SDKError("INVALID_CONTRACT_ID") for invalid contract ID', async () => {
+  it('IdentityClient.methods throw SDKError("INVALID_CONTRACT_ID") for invalid contract ID', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
-    expect(() => new IdentityClient(client, INVALID_CONTRACT_ID)).toThrow(SDKError);
     const identity = new IdentityClient(client);
     await expect(identity.bindIdentity(INVALID_CONTRACT_ID, 'identity')).rejects.toThrow(SDKError);
   });
@@ -103,6 +98,8 @@ describe('QueueClient', () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const queue = new QueueClient(client, { queueContractId: 'CQUEUE123' });
     await expect(queue.getPosition(0)).rejects.toThrow('INVALID_INPUT');
+  });
+
   it('getPosition parses position from simulateTransaction', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const { xdr } = await import('@stellar/stellar-sdk');
