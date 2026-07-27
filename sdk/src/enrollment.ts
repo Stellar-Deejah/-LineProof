@@ -26,6 +26,12 @@ export class EnrollmentClient {
     }
   }
 
+  /**
+   * Enroll in a queue. Retries transient failures automatically.
+   * @param queueId  Queue contract ID
+   * @param identity  User identity
+   * @param onRetry  Optional observer for retry attempts
+   */
   async enroll(queueId: string, _identity: string, onRetry?: OnRetryFn): Promise<string> {
     const targetId = queueId || this.contractId || '';
     validateContractId(targetId);
@@ -39,6 +45,12 @@ export class EnrollmentClient {
     );
   }
 
+  /**
+   * Cancel enrollment. Retries transient failures automatically.
+   * @param queueId  Queue contract ID
+   * @param identity  User identity
+   * @param onRetry  Optional observer for retry attempts
+   */
   async cancel(queueId: string, _identity: string, onRetry?: OnRetryFn): Promise<string> {
     const targetId = queueId || this.contractId || '';
     validateContractId(targetId);
@@ -59,14 +71,12 @@ export class EnrollmentClient {
       new Address(identity).toScVal(),
       xdr.ScVal.scvSymbol(targetId),
     ]);
-
     if (resultXdr.switch().name !== 'scvBool') {
       throw new SDKError(
         'INVALID_RESPONSE',
         'Expected Bool response from contract',
       );
     }
-
     return resultXdr.b();
   }
 }

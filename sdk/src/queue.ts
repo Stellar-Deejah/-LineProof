@@ -32,23 +32,20 @@ export class QueueClient {
         'positionId must be a positive integer',
       );
     }
-
     const resultXdr = await this.lineProof.simulateContractCall(
       this.queueContractId,
       'get_position',
       [xdr.ScVal.scvU32(positionId)],
     );
-
     if (resultXdr.switch() === xdr.ScValType.scvVoid()) {
       throw new SDKError('NOT_FOUND', 'Position not found');
     }
-
     const parsed = scValToNative(resultXdr) as Record<string, any>;
     if (!parsed) {
       throw new SDKError('INVALID_RESPONSE', 'Failed to parse Position from contract');
     }
-
     let status = 'pending';
+    // Soroban enums/symbols can sometimes be parsed as strings or objects.
     if (parsed.status) {
       if (typeof parsed.status === 'string') {
         status = parsed.status.toLowerCase();
@@ -56,20 +53,20 @@ export class QueueClient {
         status = parsed.status.tag.toLowerCase();
       }
     }
-
     const position: Position = {
       positionId: BigInt(parsed.position_id?.toString() || positionId),
       enrolledAt: Number(parsed.enrolled_at || 0),
       identity: parsed.identity || '',
       status: status as any,
     };
-    if (parsed.advanced_at) {
-      position.advancedAt = Number(parsed.advanced_at);
-    }
-
     return position;
   }
 
+  /**
+   * Advance the queue. Retries transient failures automatically.
+   * @param batchSize  Number of positions to advance
+   * @param onRetry  Optional observer for retry attempts
+   */
   async advance(batchSize: number, onRetry?: OnRetryFn): Promise<number[]> {
     const hash = await this.lineProof.submitSorobanOperation(
       Operation.invokeContractFunction({

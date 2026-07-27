@@ -29,24 +29,12 @@ describe('Integration: Enrollment flow', () => {
   });
 
   it('should enroll in a queue and verify enrollment via isEnrolled', async () => {
-    // This is a smoke test that verifies the basic enrollment flow works end-to-end
-    // It requires a running localnet with a deployed queue contract
-    if (!enrollmentClient) return;
-
-    client = new LineProofClient({
-      rpcServerUrl,
-      networkPassphrase: NetworkPassphrase.TESTNET,
-      privateKey: testPrivateKey,
-      publicKey: testPublicKey,
-    });
-    enrollmentClient = new EnrollmentClient(client);
-  });
-
-  it('should enroll in a queue and verify enrollment via isEnrolled', async () => {
     if (process.env.INTEGRATION !== 'true') {
       console.log('Skipping integration test: INTEGRATION is not set to true');
       return;
     }
+    
+    if (!enrollmentClient) return;
     
     try {
       const txHash = await enrollmentClient.enroll(testQueueId, testPublicKey);
@@ -66,6 +54,11 @@ describe('Integration: Enrollment flow', () => {
   }, 30000);
 
   it('should work with read-only client for isEnrolled', async () => {
+    if (process.env.INTEGRATION !== 'true') {
+      console.log('Skipping integration test: INTEGRATION is not set to true');
+      return;
+    }
+
     try {
       // Create a read-only client
       const readOnlyClient = LineProofClient.readOnly({
@@ -76,24 +69,17 @@ describe('Integration: Enrollment flow', () => {
 
       const readOnlyEnrollmentClient = new EnrollmentClient(readOnlyClient);
 
-      // Verify enrollment using read-only client
-    const readOnlyClient = LineProofClient.readOnly({
-      rpcServerUrl,
-      networkPassphrase: NetworkPassphrase.TESTNET,
-      publicKey: testPublicKey,
-    });
-    
-    const readOnlyEnrollmentClient = new EnrollmentClient(readOnlyClient);
-
-    if (process.env.INTEGRATION !== 'true') {
-      await expect(readOnlyEnrollmentClient.enroll(testQueueId, testPublicKey)).rejects.toThrow('MISSING_CREDENTIALS');
-      return;
-    }
-
-    try {
-      const isEnrolled = await readOnlyEnrollmentClient.isEnrolled(testQueueId, testPublicKey);
-      expect(typeof isEnrolled).toBe('boolean');
-      await expect(readOnlyEnrollmentClient.enroll(testQueueId, testPublicKey)).rejects.toThrow('MISSING_CREDENTIALS');
+      try {
+        const isEnrolled = await readOnlyEnrollmentClient.isEnrolled(testQueueId, testPublicKey);
+        expect(typeof isEnrolled).toBe('boolean');
+        await expect(readOnlyEnrollmentClient.enroll(testQueueId, testPublicKey)).rejects.toThrow('MISSING_CREDENTIALS');
+      } catch (error) {
+        if (error instanceof Error && (error.message.includes('connect') || error.message.includes('fetch'))) {
+          console.warn('Skipping integration test: network not available');
+          return;
+        }
+        throw error;
+      }
     } catch (error) {
       if (error instanceof Error && (error.message.includes('connect') || error.message.includes('fetch'))) {
         console.warn('Skipping integration test: network not available');

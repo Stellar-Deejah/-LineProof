@@ -2,7 +2,6 @@ import {
   Operation,
   xdr,
   Address,
-  BASE_FEE,
 } from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
 import { SDKError, validateContractId } from './types.js';
@@ -27,6 +26,12 @@ export class IdentityClient {
     }
   }
 
+  /**
+   * Bind an identity to a queue. Retries transient failures automatically.
+   * @param queueId  Queue contract ID
+   * @param identity  User identity
+   * @param onRetry  Optional observer for retry attempts
+   */
   async bindIdentity(queueId: string, identity: string, onRetry?: OnRetryFn): Promise<string> {
     const targetId = queueId || this.contractId || '';
     validateContractId(targetId);
@@ -50,14 +55,12 @@ export class IdentityClient {
       new Address(identity).toScVal(),
       xdr.ScVal.scvSymbol(targetId),
     ]);
-
     if (resultXdr.switch().name !== 'scvBool') {
       throw new SDKError(
         'INVALID_RESPONSE',
         'Expected Bool response from contract',
       );
     }
-
     return resultXdr.b();
   }
 
@@ -66,10 +69,6 @@ export class IdentityClient {
     to: string,
     queueId: string,
   ): Promise<void> {
-    const targetId = queueId || this.contractId || '';
-    if (targetId) {
-      validateContractId(targetId);
-    }
     throw new SDKError(
       'TRANSFER_DISABLED',
       'Transfer attempts are reverted by the protocol',

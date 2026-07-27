@@ -157,7 +157,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function createTimeoutPromise(timeoutMs: number, signal?: AbortSignal): Promise<never> {
+export function createTimeoutPromise(timeoutMs: number, signal?: AbortSignal): Promise<never> {
   return new Promise((_, reject) => {
     const timer = setTimeout(() => {
       const error = new Error(`Transaction submission timed out after ${timeoutMs}ms`);

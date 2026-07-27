@@ -129,9 +129,9 @@ describe('withRetry', () => {
     (networkError as any).code = 'ECONNRESET';
     const fn = vi.fn().mockRejectedValue(networkError);
 
-    const promise = withRetry(fn, { maxRetries: 2, timeoutMs: 5000, baseDelayMs: 10, jitterFactor: 0 });
-    await vi.advanceTimersByTimeAsync(1000);
-    await expect(promise).rejects.toThrow('Connection reset');
+    await expect(
+      withRetry(fn, { maxRetries: 2, timeoutMs: 5000, baseDelayMs: 10, jitterFactor: 0 })
+    ).rejects.toThrow('Connection reset');
     expect(fn).toHaveBeenCalledTimes(3);
   });
 
@@ -245,14 +245,14 @@ describe('createTimeoutPromise', () => {
   it('rejects after specified timeout', async () => {
     const promise = createTimeoutPromise(1000);
     vi.advanceTimersByTime(1000);
-    await expect(promise).rejects.toThrow('timed out after 1000ms');
+    await expect(promise).rejects.toThrow('Transaction submission timed out after 1000ms');
   });
 
   it('rejects immediately when signal is aborted', async () => {
     const controller = new AbortController();
     const promise = createTimeoutPromise(10000, controller.signal);
     controller.abort();
-    await expect(promise).rejects.toThrow('aborted');
+    await expect(promise).rejects.toThrow('Transaction submission aborted');
   });
 });
 

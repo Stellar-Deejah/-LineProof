@@ -18,6 +18,8 @@
     "build": "tsup src/index.ts --format cjs,esm --dts --clean",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run tests/integration/*.integration.test.ts --reporter=verbose",
+    "test:integration:watch": "vitest tests/integration/*.integration.test.ts --reporter=verbose",
     "lint": "eslint src/ tests/ --ext .ts",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "typecheck": "tsc --noEmit"
@@ -28,8 +30,8 @@
   "devDependencies": {
     "typescript": "^5.4.0",
     "tsup": "^8.0.0",
-    "vitest": "^1.6.0",
-    "@vitest/coverage-v8": "^1.6.0",
+    "vitest": "^3.2.6",
+    "@vitest/coverage-v8": "^3.2.6",
     "eslint": "^8.57.0",
     "@typescript-eslint/eslint-plugin": "^7.6.0",
     "@typescript-eslint/parser": "^7.6.0",

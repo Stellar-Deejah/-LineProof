@@ -384,14 +384,6 @@ impl EnrollmentImpl {
     }
 }
 
-fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64, _hash: BytesN<32>) {
-    env.events()
-        .publish((Symbol::new(env, "lineproof.enrollment"), kind, queue_id));
-    env.events().publish((
-        Symbol::new(env, "lineproof_enrollment"),
-        kind,
-        queue_id,
-    ), ());
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, identity: &Address, timestamp: u64, hash: BytesN<32>) {
     env.events().publish(
         (
