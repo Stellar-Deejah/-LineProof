@@ -1,10 +1,7 @@
 import {
   Operation,
-  BASE_FEE,
   xdr,
   scValToNative,
-  TransactionBuilder,
-  SorobanRpc,
 } from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
 import { SDKError, Position, validateContractId } from './types.js';
@@ -34,22 +31,18 @@ export class QueueClient {
         'positionId must be a positive integer',
       );
     }
-
     const resultXdr = await this.lineProof.simulateContractCall(
       this.queueContractId,
       'get_position',
       [xdr.ScVal.scvU32(positionId)],
     );
-
     if (resultXdr.switch() === xdr.ScValType.scvVoid()) {
       throw new SDKError('NOT_FOUND', 'Position not found');
     }
-
     const parsed = scValToNative(resultXdr) as Record<string, any>;
     if (!parsed) {
       throw new SDKError('INVALID_RESPONSE', 'Failed to parse Position from contract');
     }
-
     let status = 'pending';
     // Soroban enums/symbols can sometimes be parsed as strings or objects.
     if (parsed.status) {
@@ -59,15 +52,12 @@ export class QueueClient {
         status = parsed.status.tag.toLowerCase();
       }
     }
-
     const position: Position = {
       positionId: BigInt(parsed.position_id?.toString() || positionId),
       enrolledAt: Number(parsed.enrolled_at || 0),
       identity: parsed.identity || '',
       status: status as any,
-      ...(parsed.advanced_at ? { advancedAt: Number(parsed.advanced_at) } : {}),
     };
-
     return position;
   }
 
@@ -90,10 +80,6 @@ export class QueueClient {
     return advancedIds || [];
   }
 
-  /**
-   * Close the queue. Retries transient failures automatically.
-   * @param onRetry  Optional observer for retry attempts
-   */
   async close(onRetry?: OnRetryFn): Promise<string> {
     return this.lineProof.submitSorobanOperation(
       Operation.invokeContractFunction({

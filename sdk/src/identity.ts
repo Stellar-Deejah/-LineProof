@@ -55,14 +55,12 @@ export class IdentityClient {
       new Address(identity).toScVal(),
       xdr.ScVal.scvSymbol(targetId),
     ]);
-
     if (resultXdr.switch().name !== 'scvBool') {
       throw new SDKError(
         'INVALID_RESPONSE',
         'Expected Bool response from contract',
       );
     }
-
     return resultXdr.b();
   }
 

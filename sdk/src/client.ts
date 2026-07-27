@@ -3,12 +3,12 @@ import {
   Horizon,
   SorobanRpc,
   TransactionBuilder,
+  Account,
   BASE_FEE,
   xdr,
   Address,
   Operation,
   StrKey,
-  Account,
 } from '@stellar/stellar-sdk';
 import { createHash } from 'crypto';
 
@@ -31,7 +31,7 @@ import {
 
 // Neutral all-zeros account used as the source for simulation-only (read)
 // transactions, where no signature and no real sequence number are needed.
-const SIMULATION_ACCOUNT_ID = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+const SIMULATION_ACCOUNT_ID = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
 
 export class LineProofClient {
   readonly server: Horizon.Server;
@@ -76,15 +76,10 @@ export class LineProofClient {
     }
 
     const { horizonUrl, sorobanRpcUrl } = resolveEndpoints(config, DEFAULT_LINEPROOF_CONFIG);
-    // Horizon.Server for classic Stellar operations (strips /rpc path)
     this.server = new Horizon.Server(horizonUrl.replace(/\/rpc.*/, ''));
-    // SorobanRpc.Server for Soroban contract operations
     this.sorobanServer = new SorobanRpc.Server(sorobanRpcUrl);
   }
 
-  /**
-   * Build the retry configuration object from this client's settings.
-   */
   get retryConfig(): RetryConfig {
     return {
       maxRetries: this.maxRetries,
@@ -109,10 +104,6 @@ export class LineProofClient {
     return Keypair.fromSecret(this.sourceSecret);
   }
 
-  /**
-   * Step 1 of Soroban deployment: Upload WASM bytecode to the ledger using Operation.uploadContractWasm.
-   * Returns the 64-character hex-encoded SHA-256 WASM hash.
-   */
   async uploadWasm(wasmBytes: Uint8Array): Promise<string> {
     if (!wasmBytes || wasmBytes.length === 0) {
       throw new SDKError('INVALID_INPUT', 'wasmBytes must be a non-empty Uint8Array');
@@ -129,10 +120,6 @@ export class LineProofClient {
     return wasmHash;
   }
 
-  /**
-   * Step 2 of Soroban deployment: Instantiate a contract on-chain from a WASM hash using Operation.createCustomContract.
-   * Returns the deployed Stellar contract ID (C...).
-   */
   async installContract(wasmHash: string, _args: xdr.ScVal[] = []): Promise<string> {
     if (!wasmHash || typeof wasmHash !== 'string') {
       throw new SDKError('INVALID_INPUT', 'wasmHash must be a valid hex string');
@@ -156,7 +143,6 @@ export class LineProofClient {
         throw new Error('No return value');
       }
     } catch {
-      // Fallback contract ID calculation for mock/simulated transaction environments
       const scAddr = xdr.ScAddress.scAddressTypeContract(hashBuffer.slice(0, 32));
       contractId = Address.fromScAddress(scAddr).toString();
     }
@@ -166,13 +152,10 @@ export class LineProofClient {
     return contractId;
   }
 
-  /**
-   * Deploys the queue factory contract using the real two-step uploadContractWasm + createCustomContract flow.
-   */
   async deployFactory(wasmBytes?: Uint8Array): Promise<string> {
     const keypair = this.requireKeypair();
     await this.server.loadAccount(keypair.publicKey());
-    
+
     const bytesToDeploy = wasmBytes ?? new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
     const wasmHash = await this.uploadWasm(bytesToDeploy);
     const contractId = await this.installContract(wasmHash);
@@ -195,30 +178,11 @@ export class LineProofClient {
     return this.networkPassphrase;
   }
 
-  /**
-   * Refresh the source account sequence from the RPC node.
-   * Called automatically by submitSorobanOperation on tx_bad_seq.
-   */
   async refreshAccountSequence(): Promise<void> {
-    const keypair = this.requireKeypair();
-    const refreshed = await this.sorobanServer.getAccount(keypair.publicKey());
-    // The TransactionBuilder will fetch fresh sequence on next build,
-    // so this is mainly for logging / metrics.
-    return;
+    this.requireKeypair();
+    await this.sorobanServer.getAccount(this.requireKeypair().publicKey());
   }
 
-  /**
-   * Prepare, sign, and submit a Soroban invocation through Soroban RPC.
-   *
-   * Now wraps the submission in withRetry() for automatic:
-   *   - timeout enforcement (timeoutMs)
-   *   - retry on transient failures (maxRetries)
-   *   - exponential backoff with jitter
-   *   - sequence re-fetch on tx_bad_seq
-   *
-   * @param operation  The Soroban operation to invoke
-   * @param onRetry    Optional observer for retry attempts
-   */
   async submitSorobanOperation(
     operation: Parameters<TransactionBuilder["addOperation"]>[0],
     onRetry?: OnRetryFn,
@@ -253,8 +217,6 @@ export class LineProofClient {
     };
 
     const sequenceRefetch = async () => {
-      // Re-fetching the account updates the sequence number for the next
-      // TransactionBuilder call inside submitFn.
       await this.sorobanServer.getAccount(keypair.publicKey());
     };
 
@@ -284,9 +246,8 @@ export class LineProofClient {
     functionName: string,
     args: xdr.ScVal[] = [],
   ): Promise<xdr.ScVal> {
-    const source = this.simulationSource();
     validateContractId(contractId);
-    const tx = new TransactionBuilder(source, {
+    const tx = new TransactionBuilder(this.simulationSource(), {
       fee: BASE_FEE,
       networkPassphrase: this.networkPassphrase,
     })
@@ -346,13 +307,6 @@ export class LineProofClient {
     throw new SDKError('TIMEOUT', 'Transaction confirmation timeout');
   }
 
-  /**
-   * Fetches contract events from Soroban RPC, deserializes them into typed
-   * LineProof event interfaces, and returns them as a `Page` using this SDK's
-   * own cursor format (issue #29) — the same `paginate`/`encodeCursor` pattern
-   * documented in docs/sdk-architecture.md as the contract the backend's
-   * pagination (issue #021) is expected to match.
-   */
   async getEvents(filter: EventFilter = {}): Promise<Page<AnyLineProofEvent>> {
     const limit = Math.min(filter.limit ?? 50, 200);
     const startLedger = filter.cursor ? decodeCursor(filter.cursor).ledger : filter.startLedger ?? 0;
@@ -380,11 +334,6 @@ export class LineProofClient {
     }));
   }
 
-  /**
-   * Polls `getEvents` on an interval and invokes `callback` for each new
-   * event, advancing the cursor automatically. Returns an unsubscribe
-   * function that stops polling.
-   */
   streamEvents(
     filter: EventFilter,
     callback: (event: AnyLineProofEvent) => void,
