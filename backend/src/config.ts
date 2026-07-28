@@ -25,6 +25,8 @@ export interface BackendConfig {
   contractIds: ContractIds;
   /** True when at least one contract ID is configured (enables the on-chain read path). */
   contractsConfigured: boolean;
+  /** Maximum time to drain HTTP connections before forcing shutdown. */
+  shutdownTimeoutMs: number;
 }
 
 /**
@@ -39,6 +41,12 @@ function readContractId(
 ): string | undefined {
   const value = (env[canonical] ?? env[legacy] ?? "").trim();
   return value.length > 0 ? value : undefined;
+}
+
+function readPositiveInteger(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 export function loadConfig(
@@ -88,6 +96,7 @@ export function loadConfig(
     operatorSecretKey: env.OPERATOR_SECRET_KEY?.trim() || undefined,
     contractIds,
     contractsConfigured,
+    shutdownTimeoutMs: readPositiveInteger(env.SHUTDOWN_TIMEOUT_MS, 30_000),
   };
 }
 
