@@ -1,7 +1,6 @@
 use soroban_sdk::{testutils::Address as _, Address, Env, Symbol, Vec};
 
-use crate::{AdvancementRule, Position, PositionStatus, Queue, QueueConfig, QueueImpl, QueueImplClient, QueueStatus};
-use crate::{AdvancementRule, PositionStatus, QueueConfig, QueueImpl, QueueImplClient, QueueStatus};
+use crate::{AdvancementRule, Position, PositionStatus, QueueConfig, QueueImpl, QueueImplClient, QueueStatus};
 
 fn setup() -> (Env, Address, Address) {
     let env = Env::default();
@@ -15,7 +14,6 @@ fn make_config(env: &Env, admin: &Address) -> QueueConfig {
     QueueConfig {
         slug: Symbol::new(env, "sneaker_drop"),
         name: Symbol::new(env, "SneakerDrop"),
-        name: Symbol::new(env, "Sneaker_Drop"),
         admin: admin.clone(),
         max_positions: 5,
         enrollment_open: 1_000,
@@ -459,7 +457,7 @@ fn test_expire_position() {
     let user = Address::generate(&env);
     let pos_id = client.enroll_position(&user);
     client.close_enrollment(&admin);
-    client.advance(&admin, &0);
+    client.close(&admin);
 
     client.expire_position(&admin, &pos_id);
     let loaded = client.get_position(&pos_id).unwrap();
@@ -515,7 +513,7 @@ fn test_expire_positions_batch() {
     let id2 = client.enroll_position(&user2);
     let id3 = client.enroll_position(&user3);
     client.close_enrollment(&admin);
-    client.advance(&admin, &0);
+    client.close(&admin);
 
     let ids = Vec::from_array(&env, [id1, id2, id3]);
     client.expire_positions_batch(&admin, &ids);
@@ -554,8 +552,8 @@ fn test_advance_with_cancelled_positions_emits_skipped() {
     
     // Only 2 positions should be advanced (pos1 and pos3)
     assert_eq!(advanced.len(), 2);
-    assert!(advanced.iter().any(|&id| id == 1));
-    assert!(advanced.iter().any(|&id| id == 3));
+    assert!(advanced.iter().any(|id| id == 1));
+    assert!(advanced.iter().any(|id| id == 3));
 
     // Verify pos1 and pos3 are Advanced
     let loaded1 = client.get_position(&1).unwrap();
@@ -592,14 +590,14 @@ fn test_advance_from_advancement_active_state() {
     // First advance: batch_size=2, advances pos1 and pos2
     let advanced1 = client.advance(&admin, &2);
     assert_eq!(advanced1.len(), 2);
-    assert!(advanced1.iter().any(|&id| id == 1));
-    assert!(advanced1.iter().any(|&id| id == 2));
+    assert!(advanced1.iter().any(|id| id == 1));
+    assert!(advanced1.iter().any(|id| id == 2));
 
     // Second advance should work (queue is now AdvancementActive)
     let advanced2 = client.advance(&admin, &2);
     assert_eq!(advanced2.len(), 2);
-    assert!(advanced2.iter().any(|&id| id == 3));
-    assert!(advanced2.iter().any(|&id| id == 4));
+    assert!(advanced2.iter().any(|id| id == 3));
+    assert!(advanced2.iter().any(|id| id == 4));
 
     // Verify all 4 are Advanced
     for id in 1..=4 {
@@ -638,4 +636,82 @@ fn test_advance_all_cancelled_does_not_transition_to_advancement_active() {
         client.advance(&admin, &2);
     }));
     assert!(result.is_ok()); // Should not panic
+}
+
+// ─── Per-identity duplicate guard (issue #99) ─────────────────────────────────
+
+#[test]
+#[should_panic(expected = "identity_already_enrolled")]
+fn test_enroll_position_rejects_duplicate_identity() {
+    let (env, admin, contract_id) = setup();
+    let config = make_config(&env, &admin);
+    let client = QueueImplClient::new(&env, &contract_id);
+    client.initialize(&admin, &config);
+    client.open_enrollment(&admin);
+
+    let user = Address::generate(&env);
+    client.enroll_position(&user);
+    // Same identity tries again — must panic with the duplicate guard.
+    client.enroll_position(&user);
+}
+
+#[test]
+fn test_enroll_different_identities_succeed() {
+    let (env, admin, contract_id) = setup();
+    let config = make_config(&env, &admin);
+    let client = QueueImplClient::new(&env, &contract_id);
+    client.initialize(&admin, &config);
+    client.open_enrollment(&admin);
+
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+    let id1 = client.enroll_position(&user1);
+    let id2 = client.enroll_position(&user2);
+
+    assert_eq!(id1, 1);
+    assert_eq!(id2, 2);
+    assert_eq!(client.get_position_by_identity(&user1), Some(1));
+    assert_eq!(client.get_position_by_identity(&user2), Some(2));
+}
+
+#[test]
+fn test_get_position_by_identity_after_enroll_and_cancel() {
+    let (env, admin, contract_id) = setup();
+    let config = make_config(&env, &admin);
+    let client = QueueImplClient::new(&env, &contract_id);
+    client.initialize(&admin, &config);
+    client.open_enrollment(&admin);
+
+    let user = Address::generate(&env);
+    // Unknown identity has no position.
+    assert_eq!(client.get_position_by_identity(&user), None);
+
+    let pos_id = client.enroll_position(&user);
+    assert_eq!(client.get_position_by_identity(&user), Some(pos_id));
+
+    // Cancelling frees the per-identity index.
+    client.cancel_position(&user, &pos_id);
+    assert_eq!(client.get_position_by_identity(&user), None);
+}
+
+#[test]
+fn test_cancel_allows_reenrollment_same_identity() {
+    let (env, admin, contract_id) = setup();
+    let config = make_config(&env, &admin);
+    let client = QueueImplClient::new(&env, &contract_id);
+    client.initialize(&admin, &config);
+    client.open_enrollment(&admin);
+
+    let user = Address::generate(&env);
+    let first = client.enroll_position(&user);
+    client.cancel_position(&user, &first);
+
+    // After cancelling, the same identity can enroll again (new position id).
+    let second = client.enroll_position(&user);
+    assert_eq!(first, 1);
+    assert_eq!(second, 2);
+    assert_eq!(client.get_position_by_identity(&user), Some(2));
+
+    // total_enrolled counts all positions (incl. the cancelled one): next_id - 1 = 2.
+    assert_eq!(client.total_enrolled(), 2);
 }

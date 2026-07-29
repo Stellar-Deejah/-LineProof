@@ -1,4 +1,4 @@
-import { Operation, xdr, scValToNative } from "@stellar/stellar-sdk";
+import { Operation, xdr, scValToNative, Address } from "@stellar/stellar-sdk";
 import { LineProofClient } from "./client.js";
 import { SDKError, Position, validateContractId } from "./types.js";
 import { OnRetryFn } from "./utils.js";
@@ -58,6 +58,24 @@ export class QueueClient {
       status: status as any,
     };
     return position;
+  }
+
+  /**
+   * Look up the position id held by an identity in this queue, or null if the
+   * identity holds none. Backed by the contract's O(1) per-identity index.
+   * @param identity  Stellar address of the identity to look up
+   */
+  async getPositionByIdentity(identity: string): Promise<number | null> {
+    const resultXdr = await this.lineProof.simulateContractCall(
+      this.queueContractId,
+      "get_position_by_identity",
+      [new Address(identity).toScVal()],
+    );
+    if (resultXdr.switch() === xdr.ScValType.scvVoid()) {
+      return null;
+    }
+    const parsed = scValToNative(resultXdr);
+    return parsed == null ? null : Number(parsed);
   }
 
   /**

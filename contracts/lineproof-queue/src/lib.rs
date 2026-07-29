@@ -65,6 +65,7 @@ pub trait Queue {
     fn cancel_position(env: Env, identity: Address, position_id: u32);
     fn advance(env: Env, admin: Address, batch_size: u32) -> Vec<u32>;
     fn get_position(env: Env, position_id: u32) -> Option<Position>;
+    fn get_position_by_identity(env: Env, identity: Address) -> Option<u32>;
     fn get_config(env: Env) -> QueueConfig;
     fn current_position_index(env: Env) -> u32;
     fn total_enrolled(env: Env) -> u32;
@@ -91,12 +92,6 @@ impl QueueImpl {
             .extend_ttl(&Symbol::new(&env, "next_id"), TTL_THRESHOLD, TTL_EXTEND_TO);
         let key_idx = Symbol::new(&env, "idx");
         env.storage().persistent().set(&key_idx, &0u32);
-        env.storage()
-            .persistent()
-            .extend_ttl(&key_idx, TTL_THRESHOLD, TTL_EXTEND_TO);
-        env.storage()
-            .persistent()
-            .extend_ttl(&env.current_contract_address(), TTL_THRESHOLD, TTL_EXTEND_TO);
         env.storage()
             .persistent()
             .extend_ttl(&key_idx, TTL_THRESHOLD, TTL_EXTEND_TO);
@@ -160,6 +155,12 @@ impl QueueImpl {
         if next_id > config.max_positions {
             panic!("queue is full");
         }
+        // One position per identity: reject if this identity already holds one.
+        let identity_key = Self::identity_key(&env, &identity);
+        let existing: Option<u32> = env.storage().persistent().get(&identity_key);
+        if existing.is_some() {
+            panic!("identity_already_enrolled");
+        }
         let pos = Position {
             position_id: next_id,
             enrolled_at: env.ledger().timestamp(),
@@ -177,6 +178,12 @@ impl QueueImpl {
         env.storage()
             .persistent()
             .extend_ttl(&next_id_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        // Record the per-identity index so future enrollments are rejected and
+        // get_position_by_identity() is O(1). Points to the position just created.
+        env.storage().persistent().set(&identity_key, &next_id);
+        env.storage()
+            .persistent()
+            .extend_ttl(&identity_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "Enrolled"),
@@ -202,6 +209,10 @@ impl QueueImpl {
         env.storage()
             .persistent()
             .extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
+        // Free the per-identity index so the identity can re-enroll. total_enrolled
+        // is unaffected (it counts next_id - 1, including cancelled positions).
+        let identity_key = Self::identity_key(&env, &identity);
+        env.storage().persistent().remove(&identity_key);
         emit(
             &env,
             Symbol::new(&env, "Cancelled"),
@@ -309,6 +320,17 @@ impl QueueImpl {
         pos
     }
 
+    pub fn get_position_by_identity(env: Env, identity: Address) -> Option<u32> {
+        let key = Self::identity_key(&env, &identity);
+        let id: Option<u32> = env.storage().persistent().get(&key);
+        if id.is_some() {
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        }
+        id
+    }
+
     pub fn get_config(env: Env) -> QueueConfig {
         Self::get_config_internal(&env)
     }
@@ -348,7 +370,7 @@ impl QueueImpl {
         );
     }
 
-    fn expire_position(env: Env, admin: Address, position_id: u32) {
+    pub fn expire_position(env: Env, admin: Address, position_id: u32) {
         admin.require_auth();
         let config = Self::get_config_internal(&env);
         if !matches!(config.status, QueueStatus::AdvancementActive) && !matches!(config.status, QueueStatus::Closed) {
@@ -373,7 +395,7 @@ impl QueueImpl {
         );
     }
 
-    fn expire_positions_batch(env: Env, admin: Address, position_ids: Vec<u32>) {
+    pub fn expire_positions_batch(env: Env, admin: Address, position_ids: Vec<u32>) {
         admin.require_auth();
         let config = Self::get_config_internal(&env);
         if !matches!(config.status, QueueStatus::AdvancementActive) && !matches!(config.status, QueueStatus::Closed) {
@@ -430,6 +452,13 @@ impl QueueImpl {
 
     fn position_key(env: &Env, id: u32) -> (Symbol, u32) {
         (Symbol::new(env, "pos"), id)
+    }
+
+    /// Storage key mapping an identity to the position id it holds in this queue.
+    /// Mirrors `position_key`'s tuple layout: a `Symbol` discriminator namespaces
+    /// the entry so it never collides with `("pos", id)` or scalar keys.
+    fn identity_key(env: &Env, identity: &Address) -> (Symbol, Address) {
+        (Symbol::new(env, "identity_pos"), identity.clone())
     }
 }
 
