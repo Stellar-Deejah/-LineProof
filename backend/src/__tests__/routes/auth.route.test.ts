@@ -135,7 +135,7 @@ describe('Auth Middleware', () => {
       vi.mocked(escrowService.depositEscrow).mockReturnValue({} as any);
       const res = await request(app)
         .post('/api/escrow/deposit')
-        .send({ queueId: 'q1', identity: 'GB123456789012345678901234567890123456789012345678', amount: 10, asset: 'USDC' });
+        .send({ queueId: 'q1', identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', amount: 10, asset: 'USDC' });
       expect(res.status).toBe(201);
     });
 

@@ -277,7 +277,10 @@ impl QueueImpl {
             panic!("queue is closed");
         }
         // Allow advance from both EnrollmentClosed (first call) and AdvancementActive (subsequent calls)
-        if !matches!(config.status, QueueStatus::EnrollmentClosed | QueueStatus::AdvancementActive) {
+        if !matches!(
+            config.status,
+            QueueStatus::EnrollmentClosed | QueueStatus::AdvancementActive
+        ) {
             panic!("enrollment must be closed before advancing");
         }
 
@@ -304,13 +307,7 @@ impl QueueImpl {
                             advanced.push_back(id);
                         } else if matches!(pos.status, PositionStatus::Cancelled) {
                             // Emit Skipped event for cancelled positions
-                            emit(
-                                &env,
-                                Symbol::new(&env, "Skipped"),
-                                id,
-                                &admin,
-                                env.ledger().timestamp(),
-                            );
+                            emit(&env, Symbol::new(&env, "Skipped"), id, &admin, env.ledger().timestamp());
                             skipped.push_back(id);
                         }
                         idx += 1;
@@ -469,13 +466,7 @@ impl QueueImpl {
         // using env.deployer().with_current_contract(&new_wasm_hash).upgrade(&contract_id).
         // This function serves as an authorization checkpoint and event beacon
         // that the contract version is being upgraded.
-        emit(
-            &env,
-            Symbol::new(&env, "Upgraded"),
-            0,
-            &admin,
-            env.ledger().timestamp(),
-        );
+        emit(&env, Symbol::new(&env, "Upgraded"), 0, &admin, env.ledger().timestamp());
     }
 
     pub fn migrate(env: Env, admin: Address, from_version: u32, to_version: u32) {
@@ -485,11 +476,7 @@ impl QueueImpl {
             panic!("unauthorized: only queue admin can migrate");
         }
         let version_key = Symbol::new(&env, VERSION_KEY);
-        let stored_version: u32 = env
-            .storage()
-            .persistent()
-            .get(&version_key)
-            .unwrap_or(CURRENT_VERSION);
+        let stored_version: u32 = env.storage().persistent().get(&version_key).unwrap_or(CURRENT_VERSION);
         if stored_version != from_version {
             panic!("version mismatch: stored version does not match from_version");
         }

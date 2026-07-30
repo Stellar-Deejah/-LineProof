@@ -3,8 +3,8 @@ use soroban_sdk::{
     Address, Env, Symbol, TryFromVal, Vec,
 };
 
-use crate::{AdvancementRule, Position, PositionStatus, QueueConfig, QueueImpl, QueueImplClient, QueueStatus};
 use crate::{AdvancementRule, Position, PositionStatus, Queue, QueueConfig, QueueImpl, QueueImplClient, QueueStatus};
+use crate::{AdvancementRule, Position, PositionStatus, QueueConfig, QueueImpl, QueueImplClient, QueueStatus};
 use crate::{AdvancementRule, PositionStatus, QueueConfig, QueueImpl, QueueImplClient, QueueStatus};
 
 fn setup() -> (Env, Address, Address) {
@@ -504,7 +504,7 @@ fn test_upgrade_requires_admin_auth() {
 
     // Create a dummy WASM hash
     let new_wasm_hash = soroban_sdk::BytesN::from_array(&env, &[1u8; 32]);
-    
+
     // Call should succeed with auth mocked
     client.upgrade(&admin, &new_wasm_hash);
 }
@@ -519,7 +519,7 @@ fn test_upgrade_rejects_non_admin() {
 
     let non_admin = Address::generate(&env);
     let new_wasm_hash = soroban_sdk::BytesN::from_array(&env, &[1u8; 32]);
-    
+
     // Should panic because non_admin is not the queue admin
     client.upgrade(&non_admin, &new_wasm_hash);
 }
@@ -544,7 +544,7 @@ fn test_migrate_rejects_non_admin() {
     client.initialize(&admin, &config);
 
     let non_admin = Address::generate(&env);
-    
+
     // Should panic because non_admin is not the queue admin
     client.migrate(&non_admin, &1, &2);
 }
@@ -584,7 +584,7 @@ fn test_advance_with_cancelled_positions_emits_skipped() {
     let user1 = Address::generate(&env);
     let user2 = Address::generate(&env);
     let user3 = Address::generate(&env);
-    
+
     let pos1 = client.enroll_position(&user1); // id=1
     let pos2 = client.enroll_position(&user2); // id=2
     let pos3 = client.enroll_position(&user3); // id=3
@@ -596,7 +596,7 @@ fn test_advance_with_cancelled_positions_emits_skipped() {
 
     // Advance batch_size=3: should advance pos1 and pos3, skip pos2
     let advanced = client.advance(&admin, &3);
-    
+
     // Only 2 positions should be advanced (pos1 and pos3)
     assert_eq!(advanced.len(), 2);
     assert!(advanced.iter().any(|&id| id == 1));
@@ -605,7 +605,7 @@ fn test_advance_with_cancelled_positions_emits_skipped() {
     // Verify pos1 and pos3 are Advanced
     let loaded1 = client.get_position(&1).unwrap();
     assert!(matches!(loaded1.status, PositionStatus::Advanced));
-    
+
     let loaded3 = client.get_position(&3).unwrap();
     assert!(matches!(loaded3.status, PositionStatus::Advanced));
 
