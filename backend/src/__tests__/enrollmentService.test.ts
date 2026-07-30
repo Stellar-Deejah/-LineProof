@@ -1,13 +1,16 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import {
-  enrollIdentity,
-  cancelEnrollment,
-  getEnrollmentsByIdentity,
-  getEnrollmentsByQueue,
-} from '../services/enrollmentService.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createEnrollmentService, type EnrollmentService } from '../services/enrollmentService.js';
+import { MemoryAdapter } from '../storage/index.js';
+
+// Issue #91: fresh injected store per test — no shared state, no resetModules.
+let enrollIdentity: EnrollmentService['enrollIdentity'];
+let cancelEnrollment: EnrollmentService['cancelEnrollment'];
+let getEnrollmentsByIdentity: EnrollmentService['getEnrollmentsByIdentity'];
+let getEnrollmentsByQueue: EnrollmentService['getEnrollmentsByQueue'];
 
 beforeEach(() => {
-  vi.resetModules();
+  ({ enrollIdentity, cancelEnrollment, getEnrollmentsByIdentity, getEnrollmentsByQueue } =
+    createEnrollmentService(new MemoryAdapter()));
 });
 
 describe('enrollIdentity', () => {

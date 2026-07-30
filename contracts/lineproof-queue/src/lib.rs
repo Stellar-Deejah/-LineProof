@@ -1,9 +1,13 @@
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, Symbol, Vec};
 
 /// TTL threshold: renew if remaining TTL is below this many ledgers (~13.8 hours at 5s/ledger)
 const TTL_THRESHOLD: u32 = 10_000;
 /// TTL extension target: extend to this many ledgers (~1 year at 5s/ledger)
 const TTL_EXTEND_TO: u32 = 6_307_200;
+/// Current version of the queue contract - stored in instance storage
+const CURRENT_VERSION: u32 = 1;
+/// Storage key for the contract version
+const VERSION_KEY: &str = "version";
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -59,6 +63,8 @@ pub enum PositionStatus {
 
 pub trait Queue {
     fn initialize(env: Env, admin: Address, config: QueueConfig);
+    fn propose_admin(env: Env, current_admin: Address, proposed_admin: Address);
+    fn accept_admin(env: Env, proposed_admin: Address);
     fn open_enrollment(env: Env, admin: Address);
     fn close_enrollment(env: Env, admin: Address);
     fn enroll_position(env: Env, identity: Address) -> u32;
@@ -71,6 +77,8 @@ pub trait Queue {
     fn expire_position(env: Env, admin: Address, position_id: u32);
     fn expire_positions_batch(env: Env, admin: Address, position_ids: Vec<u32>);
     fn close(env: Env, admin: Address);
+    fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>);
+    fn migrate(env: Env, admin: Address, from_version: u32, to_version: u32);
 }
 
 #[contract]
@@ -80,6 +88,9 @@ pub struct QueueImpl;
 impl QueueImpl {
     pub fn initialize(env: Env, admin: Address, config: QueueConfig) {
         admin.require_auth();
+        if config.admin != admin {
+            panic!("not_admin");
+        }
         let key_config = Symbol::new(&env, "config");
         env.storage().persistent().set(&key_config, &config);
         env.storage()
@@ -94,17 +105,67 @@ impl QueueImpl {
         env.storage()
             .persistent()
             .extend_ttl(&key_idx, TTL_THRESHOLD, TTL_EXTEND_TO);
+        // Store the current version for tracking upgrades
+        let version_key = Symbol::new(&env, VERSION_KEY);
+        env.storage().persistent().set(&version_key, &CURRENT_VERSION);
+        env.storage()
+            .persistent()
+            .extend_ttl(&version_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         env.storage()
             .persistent()
             .extend_ttl(&env.current_contract_address(), TTL_THRESHOLD, TTL_EXTEND_TO);
-        env.storage().persistent().extend_ttl(&key_idx, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key_idx, TTL_THRESHOLD, TTL_EXTEND_TO);
         env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(&env, Symbol::new(&env, "Initialized"), 0, &admin, 0);
     }
 
-    pub fn open_enrollment(env: Env, admin: Address) {
-        admin.require_auth();
+    pub fn propose_admin(env: Env, current_admin: Address, proposed_admin: Address) {
+        let config = Self::get_config_internal(&env);
+        Self::require_admin(&config, &current_admin);
+        let key = Symbol::new(&env, "pending_admin");
+        env.storage().persistent().set(&key, &proposed_admin);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+    }
+
+    pub fn accept_admin(env: Env, proposed_admin: Address) {
+        proposed_admin.require_auth();
+        let pending_key = Symbol::new(&env, "pending_admin");
+        let pending: Address = env
+            .storage()
+            .persistent()
+            .get(&pending_key)
+            .unwrap_or_else(|| panic!("not_pending_admin"));
+        if pending != proposed_admin {
+            panic!("not_pending_admin");
+        }
+
         let mut config = Self::get_config_internal(&env);
+        let previous_admin = config.admin;
+        config.admin = proposed_admin.clone();
+        let config_key = Symbol::new(&env, "config");
+        env.storage().persistent().set(&config_key, &config);
+        env.storage()
+            .persistent()
+            .extend_ttl(&config_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage().persistent().remove(&pending_key);
+        env.events().publish(
+            (
+                soroban_sdk::String::from_str(&env, "lineproof.queue"),
+                Symbol::new(&env, "OwnershipTransferred"),
+                previous_admin,
+                proposed_admin,
+            ),
+            (),
+        );
+    }
+
+    pub fn open_enrollment(env: Env, admin: Address) {
+        let mut config = Self::get_config_internal(&env);
+        Self::require_admin(&config, &admin);
         if matches!(config.status, QueueStatus::Closed) {
             panic!("queue is closed");
         }
@@ -127,8 +188,8 @@ impl QueueImpl {
     }
 
     pub fn close_enrollment(env: Env, admin: Address) {
-        admin.require_auth();
         let mut config = Self::get_config_internal(&env);
+        Self::require_admin(&config, &admin);
         if matches!(config.status, QueueStatus::Closed) {
             panic!("queue is closed");
         }
@@ -210,24 +271,20 @@ impl QueueImpl {
     }
 
     pub fn advance(env: Env, admin: Address, batch_size: u32) -> Vec<u32> {
-        admin.require_auth();
         let mut config = Self::get_config_internal(&env);
+        Self::require_admin(&config, &admin);
         if matches!(config.status, QueueStatus::Closed) {
             panic!("queue is closed");
         }
-        if !matches!(config.status, QueueStatus::EnrollmentClosed) {
+        // Allow advance from both EnrollmentClosed (first call) and AdvancementActive (subsequent calls)
+        if !matches!(config.status, QueueStatus::EnrollmentClosed | QueueStatus::AdvancementActive) {
             panic!("enrollment must be closed before advancing");
         }
-        config.status = QueueStatus::AdvancementActive;
-        let key_config = Symbol::new(&env, "config");
-        env.storage().persistent().set(&key_config, &config);
-        env.storage()
-            .persistent()
-            .extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
 
         match config.advancement_rule {
             AdvancementRule::Fifo => {
                 let mut advanced: Vec<u32> = Vec::new(&env);
+                let mut skipped: Vec<u32> = Vec::new(&env);
                 let mut idx: u32 = env.storage().persistent().get(&Symbol::new(&env, "idx")).unwrap_or(0);
 
                 for _ in 0..batch_size {
@@ -245,6 +302,16 @@ impl QueueImpl {
                                 .persistent()
                                 .extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
                             advanced.push_back(id);
+                        } else if matches!(pos.status, PositionStatus::Cancelled) {
+                            // Emit Skipped event for cancelled positions
+                            emit(
+                                &env,
+                                Symbol::new(&env, "Skipped"),
+                                id,
+                                &admin,
+                                env.ledger().timestamp(),
+                            );
+                            skipped.push_back(id);
                         }
                         idx += 1;
                     } else {
@@ -255,7 +322,18 @@ impl QueueImpl {
                 env.storage()
                     .persistent()
                     .extend_ttl(&Symbol::new(&env, "idx"), TTL_THRESHOLD, TTL_EXTEND_TO);
-                // Remain in AdvancementActive so callers can issue further advance() batches
+
+                // Only transition to AdvancementActive if at least one position was advanced
+                if !advanced.is_empty() && matches!(config.status, QueueStatus::EnrollmentClosed) {
+                    config.status = QueueStatus::AdvancementActive;
+                    let key_config = Symbol::new(&env, "config");
+                    env.storage().persistent().set(&key_config, &config);
+                    env.storage()
+                        .persistent()
+                        .extend_ttl(&key_config, TTL_THRESHOLD, TTL_EXTEND_TO);
+                }
+
+                // Emit Advanced events for successfully advanced positions
                 for id in advanced.iter() {
                     emit(
                         &env,
@@ -283,7 +361,9 @@ impl QueueImpl {
         let key = Self::position_key(&env, position_id);
         let pos: Option<Position> = env.storage().persistent().get(&key);
         if let Some(ref _pos) = pos {
-            env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
         }
         pos
     }
@@ -310,8 +390,8 @@ impl QueueImpl {
     }
 
     pub fn close(env: Env, admin: Address) {
-        admin.require_auth();
         let mut config = Self::get_config_internal(&env);
+        Self::require_admin(&config, &admin);
         config.status = QueueStatus::Closed;
         let key_config = Symbol::new(&env, "config");
         env.storage().persistent().set(&key_config, &config);
@@ -327,9 +407,9 @@ impl QueueImpl {
         );
     }
 
-    fn expire_position(env: Env, admin: Address, position_id: u32) {
-        admin.require_auth();
+    pub fn expire_position(env: Env, admin: Address, position_id: u32) {
         let config = Self::get_config_internal(&env);
+        Self::require_admin(&config, &admin);
         if !matches!(config.status, QueueStatus::AdvancementActive) && !matches!(config.status, QueueStatus::Closed) {
             panic!("queue must be in advancement or closed state");
         }
@@ -340,7 +420,9 @@ impl QueueImpl {
         pos.status = PositionStatus::Expired;
         let key_pos = Self::position_key(&env, position_id);
         env.storage().persistent().set(&key_pos, &pos);
-        env.storage().persistent().extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "Expired"),
@@ -350,9 +432,9 @@ impl QueueImpl {
         );
     }
 
-    fn expire_positions_batch(env: Env, admin: Address, position_ids: Vec<u32>) {
-        admin.require_auth();
+    pub fn expire_positions_batch(env: Env, admin: Address, position_ids: Vec<u32>) {
         let config = Self::get_config_internal(&env);
+        Self::require_admin(&config, &admin);
         if !matches!(config.status, QueueStatus::AdvancementActive) && !matches!(config.status, QueueStatus::Closed) {
             panic!("queue must be in advancement or closed state");
         }
@@ -364,7 +446,9 @@ impl QueueImpl {
             pos.status = PositionStatus::Expired;
             let key_pos = Self::position_key(&env, position_id);
             env.storage().persistent().set(&key_pos, &pos);
-            env.storage().persistent().extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
+            env.storage()
+                .persistent()
+                .extend_ttl(&key_pos, TTL_THRESHOLD, TTL_EXTEND_TO);
             emit(
                 &env,
                 Symbol::new(&env, "Expired"),
@@ -374,9 +458,77 @@ impl QueueImpl {
             );
         }
     }
+
+    pub fn upgrade(env: Env, admin: Address, _new_wasm_hash: BytesN<32>) {
+        admin.require_auth();
+        let config = Self::get_config_internal(&env);
+        if config.admin != admin {
+            panic!("unauthorized: only queue admin can upgrade");
+        }
+        // Note: The actual WASM upgrade is performed by the factory contract
+        // using env.deployer().with_current_contract(&new_wasm_hash).upgrade(&contract_id).
+        // This function serves as an authorization checkpoint and event beacon
+        // that the contract version is being upgraded.
+        emit(
+            &env,
+            Symbol::new(&env, "Upgraded"),
+            0,
+            &admin,
+            env.ledger().timestamp(),
+        );
+    }
+
+    pub fn migrate(env: Env, admin: Address, from_version: u32, to_version: u32) {
+        admin.require_auth();
+        let config = Self::get_config_internal(&env);
+        if config.admin != admin {
+            panic!("unauthorized: only queue admin can migrate");
+        }
+        let version_key = Symbol::new(&env, VERSION_KEY);
+        let stored_version: u32 = env
+            .storage()
+            .persistent()
+            .get(&version_key)
+            .unwrap_or(CURRENT_VERSION);
+        if stored_version != from_version {
+            panic!("version mismatch: stored version does not match from_version");
+        }
+        // Validate version progression
+        if to_version <= from_version {
+            panic!("to_version must be greater than from_version");
+        }
+        // Apply version-specific migrations
+        // This is a skeleton that can be extended with actual storage transformations
+        // as the contract evolves in future versions.
+        match (from_version, to_version) {
+            // Example: (1, 2) would handle v1 -> v2 migration
+            _ => {
+                // No migration logic needed for current version transition
+            }
+        }
+        // Update stored version
+        env.storage().persistent().set(&version_key, &to_version);
+        env.storage()
+            .persistent()
+            .extend_ttl(&version_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        emit(
+            &env,
+            Symbol::new(&env, "Migrated"),
+            from_version,
+            &admin,
+            to_version as u64,
+        );
+    }
 }
 
 impl QueueImpl {
+    fn require_admin(config: &QueueConfig, admin: &Address) {
+        if config.admin != *admin {
+            panic!("not_admin");
+        }
+        admin.require_auth();
+    }
+
     fn get_config_internal(env: &Env) -> QueueConfig {
         let key = Symbol::new(env, "config");
         let config = env
@@ -408,9 +560,13 @@ impl QueueImpl {
     }
 }
 
-fn emit(env: &Env, kind: Symbol, position_id: u32, _identity: &Address, _timestamp: u64) {
-    env.events()
-        .publish((Symbol::new(env, "lineproof_queue"), kind, position_id), ());
+fn emit(env: &Env, kind: Symbol, position_id: u32, identity: &Address, timestamp: u64) {
+    // #83: carry the identity and timestamp in the event payload so auditors can
+    // rebuild queue history from events alone, instead of an empty `()` body.
+    env.events().publish(
+        (Symbol::new(env, "lineproof_queue"), kind, position_id),
+        (identity.clone(), timestamp),
+    );
 }
 
 #[cfg(test)]

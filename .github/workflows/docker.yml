@@ -39,16 +39,59 @@ jobs:
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=sha,prefix=sha-
-      - name: Build and push backend image
+      - name: Get first image tag
+        id: img-tag
+        run: |
+          TAG=$(echo "$TAGS" | head -1)
+          echo "value=$TAG" >> "$GITHUB_OUTPUT"
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+      - name: Build and load backend image
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: ./backend/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Smoke test backend container
+        run: |
+          docker run --rm -d --name lineproof-test \
+            -e NODE_ENV=test \
+            -e PORT=4000 \
+            -p 4000:4000 \
+            "${{ steps.img-tag.outputs.value }}"
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:4000/health > /dev/null 2>&1; then
+              echo "Health check passed"
+              docker stop lineproof-test
+              exit 0
+            fi
+            echo "Waiting for container... attempt $i"
+            sleep 2
+          done
+          echo "Health check failed — container logs:"
+          docker logs lineproof-test
+          docker stop lineproof-test
+          exit 1
+      - name: Scan backend image for CVEs
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: ${{ steps.img-tag.outputs.value }}
+          fail-build: true
+          severity-cutoff: critical
+          output: grype-report-backend.sarif
+      - name: Upload vulnerability scan report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: grype-report-backend
+          path: grype-report-backend.sarif
+      - name: Push backend image
+        if: github.event_name != 'pull_request'
+        run: docker push ${{ steps.img-tag.outputs.value }}
 
   build-frontend:
     name: Build Frontend Image
@@ -76,13 +119,52 @@ jobs:
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=sha,prefix=sha-
-      - name: Build and push frontend image
+      - name: Get first image tag
+        id: img-tag
+        run: |
+          TAG=$(echo "$TAGS" | head -1)
+          echo "value=$TAG" >> "$GITHUB_OUTPUT"
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+      - name: Build and load frontend image
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: ./frontend/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Smoke test frontend container
+        run: |
+          docker run --rm -d --name lineproof-frontend-test -p 8080:80 "${{ steps.img-tag.outputs.value }}"
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:8080/ > /dev/null 2>&1; then
+              echo "Frontend health check passed"
+              docker stop lineproof-frontend-test
+              exit 0
+            fi
+            echo "Waiting for frontend... attempt $i"
+            sleep 2
+          done
+          echo "Frontend health check failed — container logs:"
+          docker logs lineproof-frontend-test
+          docker stop lineproof-frontend-test
+          exit 1
+      - name: Scan frontend image for CVEs
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: ${{ steps.img-tag.outputs.value }}
+          fail-build: true
+          severity-cutoff: critical
+          output: grype-report-frontend.sarif
+      - name: Upload vulnerability scan report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: grype-report-frontend
+          path: grype-report-frontend.sarif
+      - name: Push frontend image
+        if: github.event_name != 'pull_request'
+        run: docker push ${{ steps.img-tag.outputs.value }}

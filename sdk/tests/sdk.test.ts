@@ -19,10 +19,11 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
     SorobanRpc: {
       ...actual.SorobanRpc,
       Server: vi.fn(() => ({
-        getAccount: vi.fn(async () => ({ sequence: '1' })),
+        getAccount: vi.fn(async () => new actual.Account('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', '1')),
         prepareTransaction: vi.fn(async (tx) => { (tx as any).sign = vi.fn(); return tx; }),
         sendTransaction: vi.fn(async () => ({ status: 'SUCCESS', hash: 'mockhash' })),
         simulateTransaction: vi.fn(async () => ({
+          transactionData: '',
           result: { retval: actual.xdr.ScVal.scvBool(true) }
         })),
         getTransaction: vi.fn(async () => ({
@@ -49,18 +50,11 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
       STANDALONE: 'Standalone Network ; February 2017',
     },
     BASE_FEE: '100',
-    SorobanRpc: {
-      Server: vi.fn(() => ({
-        simulateTransaction: vi.fn(async () => ({
-          result: 'AAAAAQ==', // base64 encoded XDR for a boolean true
-        })),
-      })),
-    },
   };
 });
 
 const TEST_NET = NetworkPassphrase.TESTNET;
-const VALID_CONTRACT_ID = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAF4H';
+const VALID_CONTRACT_ID = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4';
 const INVALID_CONTRACT_ID = 'INVALID_ID_STRING';
 
 describe('LineProofClient', () => {
@@ -101,13 +95,16 @@ describe('Contract ID Validation Across All Clients', () => {
 describe('QueueClient', () => {
   it('getPosition rejects a non-positive positionId', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
-    const queue = new QueueClient(client, { queueContractId: 'CQUEUE123' });
+    const queue = new QueueClient(client, { queueContractId: VALID_CONTRACT_ID });
     await expect(queue.getPosition(0)).rejects.toThrow('INVALID_INPUT');
+  });
+
   it('getPosition parses position from simulateTransaction', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const { xdr } = await import('@stellar/stellar-sdk');
     
     client.sorobanServer.simulateTransaction = vi.fn().mockResolvedValue({
+      transactionData: '',
       result: {
         retval: xdr.ScVal.scvMap([
           new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('position_id'), val: xdr.ScVal.scvU32(5) }),
@@ -152,6 +149,7 @@ describe('EnrollmentClient', () => {
     const { xdr } = await import('@stellar/stellar-sdk');
     
     client.sorobanServer.simulateTransaction = vi.fn().mockResolvedValue({
+      transactionData: '',
       result: { retval: xdr.ScVal.scvBool(true) }
     } as any);
 
@@ -172,7 +170,7 @@ describe('IdentityClient', () => {
   it('throws TRANSFER_DISABLED on transfer attempt', async () => {
     const client = new LineProofClient({ rpcServerUrl: 'http://localhost:8000', networkPassphrase: TEST_NET });
     const identity = new IdentityClient(client);
-    await expect(identity.recordTransferAttempt('from', 'to', VALID_CONTRACT_ID)).rejects.toThrow('TRANSFER_DISABLED');
+    await expect(identity.recordTransferAttempt('from', 'to')).rejects.toThrow('TRANSFER_DISABLED');
   });
 
   it('isBound parses boolean from simulateTransaction', async () => {
@@ -181,6 +179,7 @@ describe('IdentityClient', () => {
     const { xdr } = await import('@stellar/stellar-sdk');
     
     client.sorobanServer.simulateTransaction = vi.fn().mockResolvedValue({
+      transactionData: '',
       result: { retval: xdr.ScVal.scvBool(false) }
     } as any);
 

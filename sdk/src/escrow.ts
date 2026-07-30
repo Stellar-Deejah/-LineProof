@@ -1,4 +1,7 @@
-import { Operation, xdr } from '@stellar/stellar-sdk';
+import {
+  Operation,
+  xdr,
+} from '@stellar/stellar-sdk';
 import { LineProofClient } from './client.js';
 import { SDKError, validateContractId } from './types.js';
 import { OnRetryFn } from './utils.js';
@@ -22,17 +25,24 @@ export class EscrowClient {
     }
   }
 
+  /**
+   * Deposit funds into an escrow. Retries transient failures automatically.
+   * @param escrowContractId  Escrow contract ID
+   * @param amount  Amount to deposit
+   * @param _asset  Asset code
+   * @param onRetry  Optional observer for retry attempts
+   */
   async deposit(
     escrowContractId: string,
     amount: number,
     _asset: string,
     onRetry?: OnRetryFn,
   ): Promise<string> {
-    const targetId = escrowContractId || this.contractId || '';
-    validateContractId(targetId);
     if (amount <= 0) {
       throw new SDKError('INVALID_INPUT', 'deposit amount must be positive');
     }
+    const targetId = escrowContractId || this.contractId || '';
+    validateContractId(targetId);
     return this.client.submitSorobanOperation(
       Operation.invokeContractFunction({
         contract: targetId,
@@ -43,6 +53,12 @@ export class EscrowClient {
     );
   }
 
+  /**
+   * Release escrowed funds. Retries transient failures automatically.
+   * @param escrowContractId  Escrow contract ID
+   * @param _identity  User identity
+   * @param onRetry  Optional observer for retry attempts
+   */
   async release(escrowContractId: string, _identity: string, onRetry?: OnRetryFn): Promise<string> {
     const targetId = escrowContractId || this.contractId || '';
     validateContractId(targetId);
@@ -56,6 +72,12 @@ export class EscrowClient {
     );
   }
 
+  /**
+   * Refund escrowed funds. Retries transient failures automatically.
+   * @param escrowContractId  Escrow contract ID
+   * @param _identity  User identity
+   * @param onRetry  Optional observer for retry attempts
+   */
   async refund(escrowContractId: string, _identity: string, onRetry?: OnRetryFn): Promise<string> {
     const targetId = escrowContractId || this.contractId || '';
     validateContractId(targetId);
@@ -69,6 +91,12 @@ export class EscrowClient {
     );
   }
 
+  /**
+   * Expire an escrow. Retries transient failures automatically.
+   * @param escrowContractId  Escrow contract ID
+   * @param identity  User identity
+   * @param onRetry  Optional observer for retry attempts
+   */
   async expire(escrowContractId: string, identity: string, onRetry?: OnRetryFn): Promise<string> {
     const targetId = escrowContractId || this.contractId || '';
     validateContractId(targetId);

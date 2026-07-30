@@ -53,6 +53,13 @@ export interface QueueClosedEvent extends LineProofRawEvent {
   kind: 'QueueClosed';
 }
 
+export interface OwnershipTransferredEvent extends LineProofRawEvent {
+  namespace: 'lineproof.queue';
+  kind: 'OwnershipTransferred';
+  previousAdmin: string;
+  newAdmin: string;
+}
+
 // ── Enrollment events ─────────────────────────────────────────────────────────
 export interface EnrolledEvent extends LineProofRawEvent {
   namespace: 'lineproof.enrollment';
@@ -139,7 +146,7 @@ export interface QueueRegisteredEvent extends LineProofRawEvent {
 
 export type AnyLineProofEvent =
   | QueueInitializedEvent | EnrollmentOpenedEvent | EnrollmentClosedEvent
-  | PositionAdvancedEvent | PositionExpiredEvent | QueueClosedEvent
+  | PositionAdvancedEvent | PositionExpiredEvent | QueueClosedEvent | OwnershipTransferredEvent
   | EnrolledEvent | EnrollmentCancelledEvent | EnrollmentFinalizedEvent
   | EscrowDepositedEvent | EscrowReleasedEvent | EscrowRefundedEvent | EscrowExpiredEvent
   | IdentityBoundEvent | IdentityUnboundEvent | TransferRevertedEvent
@@ -258,6 +265,14 @@ function attachTypedFields(
       return { ...base, namespace: 'lineproof.queue', kind: 'Advanced', positionId: asNumber(extraTopics[0]) };
     case 'lineproof.queue:QueueClosed':
       return { ...base, namespace: 'lineproof.queue', kind: 'QueueClosed' };
+    case 'lineproof.queue:OwnershipTransferred':
+      return {
+        ...base,
+        namespace: 'lineproof.queue',
+        kind: 'OwnershipTransferred',
+        previousAdmin: asString(extraTopics[0]),
+        newAdmin: asString(extraTopics[1]),
+      };
 
     case 'lineproof.enrollment:Enrolled':
       return {

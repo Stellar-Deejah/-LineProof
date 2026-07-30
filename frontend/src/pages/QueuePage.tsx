@@ -57,9 +57,6 @@ export default function QueuePage() {
   if (loading) return <QueuePageSkeleton />;
 
   if (error || !queue) return (
-    <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/30 dark:border-red-800 p-4 text-sm text-red-700 dark:text-red-400">
-      {error ?? 'Queue not found.'}
-    </div>
     <AlertBanner variant="error" message={error ?? 'Queue not found.'} />
   );
 
@@ -165,19 +162,10 @@ export default function QueuePage() {
               className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500"
             />
             {(inputError || enrollError) && (
-              <LiveRegion className="text-sm text-red-600 dark:text-red-400">
               <AlertBanner variant="error" message={inputError ?? enrollError ?? ''} />
             )}
             {result?.conflict && (
               <AlertBanner variant="warning" message="This identity is already enrolled in this queue." />
-              <LiveRegion className="text-sm text-red-600">
-                {inputError ?? enrollError}
-              </LiveRegion>
-            )}
-            {result?.conflict && (
-              <LiveRegion className="text-sm text-amber-600 dark:text-amber-400">
-                This identity is already enrolled in this queue.
-              </LiveRegion>
             )}
             <button
               type="submit"

@@ -70,15 +70,14 @@ impl Enrollment for EnrollmentImpl {
                         panic!("already waitlisted");
                     }
                     let key = Self::waitlist_key(&env, &queue_id);
-                    let mut waitlist: Vec<Address> = env
-                        .storage()
-                        .persistent()
-                        .get(&key)
-                        .unwrap_or_else(|| Vec::new(&env));
+                    let mut waitlist: Vec<Address> =
+                        env.storage().persistent().get(&key).unwrap_or_else(|| Vec::new(&env));
                     waitlist.push_back(caller.clone());
                     env.storage().persistent().set(&key, &waitlist);
-                    env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-                    
+                    env.storage()
+                        .persistent()
+                        .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+
                     let zero_hash = BytesN::from_array(&env, &[0u8; 32]);
                     emit(
                         &env,
@@ -121,7 +120,9 @@ impl Enrollment for EnrollmentImpl {
                         expires_at,
                     };
                     env.storage().persistent().set(&record_key, &updated_record);
-                    env.storage().persistent().extend_ttl(&record_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+                    env.storage()
+                        .persistent()
+                        .extend_ttl(&record_key, TTL_THRESHOLD, TTL_EXTEND_TO);
                     emit(
                         &env,
                         Symbol::new(&env, "Enrolled"),
@@ -140,7 +141,7 @@ impl Enrollment for EnrollmentImpl {
                 }
             }
         }
-        
+
         let enrolled_at = env.ledger().timestamp();
         let hash = Self::compute_proof_hash(&env, &caller, &queue_id, enrolled_at);
         let record = EnrollmentRecord {
@@ -157,13 +158,17 @@ impl Enrollment for EnrollmentImpl {
         env.storage()
             .persistent()
             .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+
         // Increment enrollment count
         let count_key = Self::count_key(&env, &queue_id);
         let count: u32 = env.storage().persistent().get(&count_key).unwrap_or(0);
         env.storage().persistent().set(&count_key, &(count + 1));
-        env.storage().persistent().extend_ttl(&count_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&count_key, TTL_THRESHOLD, TTL_EXTEND_TO);
 
         emit(
             &env,
@@ -191,13 +196,15 @@ impl Enrollment for EnrollmentImpl {
             .get(&key)
             .unwrap_or_else(|| panic!("not enrolled"));
         env.storage().persistent().remove(&key);
-        
+
         // Decrement enrollment count
         let count_key = Self::count_key(&env, &queue_id);
         let count: u32 = env.storage().persistent().get(&count_key).unwrap_or(0);
         if count > 0 {
             env.storage().persistent().set(&count_key, &(count - 1));
-            env.storage().persistent().extend_ttl(&count_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+            env.storage()
+                .persistent()
+                .extend_ttl(&count_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         }
 
         emit(
@@ -234,8 +241,10 @@ impl Enrollment for EnrollmentImpl {
         env.storage()
             .persistent()
             .extend_ttl(&Symbol::new(&env, "dup_behavior"), TTL_THRESHOLD, TTL_EXTEND_TO);
-        env.storage().persistent().extend_ttl(&Symbol::new(&env, "dup_behavior"), TTL_THRESHOLD, TTL_EXTEND_TO);
-        
+        env.storage()
+            .persistent()
+            .extend_ttl(&Symbol::new(&env, "dup_behavior"), TTL_THRESHOLD, TTL_EXTEND_TO);
+
         env.events().publish(
             (
                 Symbol::new(&env, "lineproof_enrollment"),
@@ -295,7 +304,7 @@ impl Enrollment for EnrollmentImpl {
         let key = Self::waitlist_key(&env, &queue_id);
         let mut waitlist = Self::get_waitlist(env.clone(), queue_id.clone());
         let to_promote = count.min(waitlist.len());
-        
+
         for _ in 0..to_promote {
             let identity = waitlist.get(0).unwrap();
             waitlist.remove(0);
@@ -312,13 +321,17 @@ impl Enrollment for EnrollmentImpl {
             };
             let record_key = Self::record_key(&env, &identity, &queue_id);
             env.storage().persistent().set(&record_key, &record);
-            env.storage().persistent().extend_ttl(&record_key, TTL_THRESHOLD, TTL_EXTEND_TO);
-            
+            env.storage()
+                .persistent()
+                .extend_ttl(&record_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+
             // Increment enrollment count
             let count_key = Self::count_key(&env, &queue_id);
             let count_val: u32 = env.storage().persistent().get(&count_key).unwrap_or(0);
             env.storage().persistent().set(&count_key, &(count_val + 1));
-            env.storage().persistent().extend_ttl(&count_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+            env.storage()
+                .persistent()
+                .extend_ttl(&count_key, TTL_THRESHOLD, TTL_EXTEND_TO);
 
             emit(
                 &env,
@@ -329,9 +342,11 @@ impl Enrollment for EnrollmentImpl {
                 hash,
             );
         }
-        
+
         env.storage().persistent().set(&key, &waitlist);
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 }
 
@@ -384,21 +399,9 @@ impl EnrollmentImpl {
     }
 }
 
-fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64, _hash: BytesN<32>) {
-    env.events()
-        .publish((Symbol::new(env, "lineproof.enrollment"), kind, queue_id));
-    env.events().publish((
-        Symbol::new(env, "lineproof_enrollment"),
-        kind,
-        queue_id,
-    ), ());
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, identity: &Address, timestamp: u64, hash: BytesN<32>) {
     env.events().publish(
-        (
-            Symbol::new(env, "lineproof_enrollment"),
-            kind,
-            queue_id,
-        ),
+        (Symbol::new(env, "lineproof_enrollment"), kind, queue_id),
         (identity.clone(), timestamp, hash),
     );
 }

@@ -30,3 +30,13 @@ import { Keypair, Networks } from '@stellar/stellar-sdk';
 
 No other exports changed. If you only used `@lineproof/sdk`'s own clients and
 types, no action is needed.
+
+## Testing Utilities
+
+The SDK provides test utilities in a separate entry point to prevent them from leaking into production bundles. To use these utilities, import them from `@lineproof/sdk/testing`:
+
+```ts
+import { generateTestKeypair } from '@lineproof/sdk/testing';
+```
+
+Separating test utilities into a sub-path export ensures that testing code (which may generate random keypairs for non-production environments) does not accidentally find its way into your main application payload when bundled for production.

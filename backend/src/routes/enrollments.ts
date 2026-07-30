@@ -11,12 +11,12 @@ const router: IRouter = Router();
 const EnrollSchema = z.object({
   queueId: z.string().min(1),
   identity: StellarAddress,
-});
+}).strict();
 
 const CancelSchema = z.object({
   queueId: z.string().min(1),
   identity: StellarAddress,
-});
+}).strict();
 
 type EnrollInput = z.infer<typeof EnrollSchema>;
 type CancelInput = z.infer<typeof CancelSchema>;

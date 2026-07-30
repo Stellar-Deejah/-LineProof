@@ -130,7 +130,9 @@ impl Identity for IdentityImpl {
         }
         let allowed_key = Symbol::new(&env, "transfer_allow");
         env.storage().persistent().set(&allowed_key, &allowed);
-        env.storage().persistent().extend_ttl(&allowed_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&allowed_key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     fn record_transfer_attempt(env: Env, from: Address, to: Address, queue_id: Symbol) {
@@ -240,14 +242,12 @@ impl IdentityImpl {
     }
 }
 
-fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64) {
-    env.events()
-        .publish((Symbol::new(env, "lineproof.identity"), kind, queue_id));
-    env.events().publish((
-        Symbol::new(env, "lineproof_identity"),
-        kind,
-        queue_id,
-    ), ());
+fn emit(env: &Env, kind: Symbol, queue_id: Symbol, identity: &Address, timestamp: u64) {
+    // #83: carry the identity and timestamp in the event payload.
+    env.events().publish(
+        (Symbol::new(env, "lineproof_identity"), kind, queue_id),
+        (identity.clone(), timestamp),
+    );
 }
 
 #[cfg(test)]

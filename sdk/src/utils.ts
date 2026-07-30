@@ -2,7 +2,7 @@
  * Utility helpers for the LineProof SDK.
  */
 
-import { Keypair, StrKey } from '@stellar/stellar-sdk';
+import { StrKey } from '@stellar/stellar-sdk';
 import { SDKError } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -157,7 +157,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function createTimeoutPromise(timeoutMs: number, signal?: AbortSignal): Promise<never> {
+export function createTimeoutPromise(timeoutMs: number, signal?: AbortSignal): Promise<never> {
   return new Promise((_, reject) => {
     const timer = setTimeout(() => {
       const error = new Error(`Transaction submission timed out after ${timeoutMs}ms`);
@@ -277,6 +277,40 @@ export async function withRetry<T>(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** Validates that a string is a valid Stellar Ed25519 public key (checksum verified). */
+/** Maximum slug length. Matches a `soroban_sdk::String` queue id, well above
+ * Soroban's 9-character `Symbol` limit that a raw slug would otherwise hit. */
+export const MAX_SLUG_LENGTH = 64;
+
+/** Allowed slug shape: lowercase alphanumeric words joined by single hyphens. */
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Validates a queue slug before it is submitted to a contract (issue #86).
+ *
+ * A slug longer than Soroban's 9-character `Symbol` limit panics on-chain with
+ * no actionable cause. This guards the boundary so an over-length or malformed
+ * slug is rejected in the client with a clear `SDKError('INVALID_SLUG', ...)`
+ * long before it reaches the contract.
+ */
+export function validateSlug(slug: string): void {
+  if (typeof slug !== 'string' || slug.length === 0) {
+    throw new SDKError('INVALID_SLUG', 'Slug must be a non-empty string', { value: slug });
+  }
+  if (slug.length > MAX_SLUG_LENGTH) {
+    throw new SDKError('INVALID_SLUG', `Slug must be at most ${MAX_SLUG_LENGTH} characters`, {
+      value: slug,
+      length: slug.length,
+    });
+  }
+  if (!SLUG_PATTERN.test(slug)) {
+    throw new SDKError(
+      'INVALID_SLUG',
+      'Slug must be lowercase alphanumeric words separated by single hyphens (e.g. "sneaker-drop-001")',
+      { value: slug },
+    );
+  }
+}
+
 export function assertValidAddress(address: string, fieldName = 'address'): void {
   if (typeof address !== 'string' || !StrKey.isValidEd25519PublicKey(address)) {
     throw new SDKError(
@@ -287,10 +321,57 @@ export function assertValidAddress(address: string, fieldName = 'address'): void
   }
 }
 
-/** Converts a readable asset amount to stroops (7 decimal places). */
-export function toStroops(amount: number): bigint {
-  if (amount < 0) throw new SDKError('INVALID_AMOUNT', 'Amount must be non-negative');
-  return BigInt(Math.round(amount * 10_000_000));
+/** Stroops per unit: Stellar amounts carry 7 decimal places. */
+const STROOPS_PER_UNIT = 10_000_000n;
+
+/** Maximum value of the Soroban `i128` amount type. */
+const I128_MAX = 170_141_183_460_469_231_731_687_303_715_884_105_727n;
+
+/**
+ * Converts a readable asset amount to stroops (7 decimal places).
+ *
+ * Accepts a string or a number. The scaled value is never computed by
+ * floating-point multiplication — the culprit behind silent 1-stroop
+ * truncation — but by parsing the decimal digits directly. A number is first
+ * rendered with `toFixed(7)`, which rounds to stroop precision without the
+ * `amount * 10_000_000` error.
+ *
+ * Throws `SDKError('INVALID_AMOUNT', ...)` for NaN/Infinity, negative values,
+ * malformed strings, sub-stroop (>7 decimal) precision, and values that would
+ * overflow `i128`.
+ */
+export function toStroops(amount: string | number): bigint {
+  let text: string;
+  if (typeof amount === 'number') {
+    if (!Number.isFinite(amount)) {
+      throw new SDKError('INVALID_AMOUNT', 'Amount must be a finite number', { value: amount });
+    }
+    text = amount.toFixed(7);
+  } else if (typeof amount === 'string') {
+    text = amount.trim();
+    if (!/^-?\d+(\.\d+)?$/.test(text)) {
+      throw new SDKError('INVALID_AMOUNT', 'Amount must be a decimal string', { value: amount });
+    }
+  } else {
+    throw new SDKError('INVALID_AMOUNT', 'Amount must be a string or number', { value: amount });
+  }
+
+  if (text.startsWith('-')) {
+    throw new SDKError('INVALID_AMOUNT', 'Amount must be non-negative', { value: amount });
+  }
+
+  const [whole, frac = ''] = text.split('.');
+  if (frac.length > 7) {
+    throw new SDKError('INVALID_AMOUNT', 'Amount has more than 7 decimal places (sub-stroop precision)', {
+      value: amount,
+    });
+  }
+
+  const stroops = BigInt(whole) * STROOPS_PER_UNIT + BigInt(frac.padEnd(7, '0'));
+  if (stroops > I128_MAX) {
+    throw new SDKError('INVALID_AMOUNT', 'Amount exceeds the maximum i128 value', { value: amount });
+  }
+  return stroops;
 }
 
 /** Converts stroops back to a human-readable decimal string. */
@@ -317,8 +398,3 @@ export function truncateAddress(address: string, chars = 6): string {
   return `${address.slice(0, chars)}…${address.slice(-chars)}`;
 }
 
-/** Generates a random Stellar keypair (for testing only — never for production keys). */
-export function generateTestKeypair(): { publicKey: string; secretKey: string } {
-  const kp = Keypair.random();
-  return { publicKey: kp.publicKey(), secretKey: kp.secret() };
-}

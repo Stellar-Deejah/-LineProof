@@ -67,6 +67,22 @@ Use `make docker-clean` when you need to reset local ledger state.
 - Run `make test` and `make lint` when practical.
 - Include security notes when changing authorization, escrow, identity, or queue ordering.
 
+## Browser Support & Build Configuration
+
+### Browser Support Policy
+The frontend is compiled targeting modern browsers to ensure optimal performance, smaller bundle sizes, and native support for modern JavaScript features. Our explicit build targets are:
+- **ES2020** baseline
+- **Chrome 87+**
+- **Firefox 78+**
+- **Safari 14+**
+
+*Trade-offs:* By explicitly setting these targets, we exclude legacy browsers (e.g., IE11, older Safari/Chrome versions). This avoids injecting unnecessary polyfills and allows the codebase to safely use modern syntax (optional chaining, nullish coalescing, top-level await) without transpilation overhead.
+
+### Build Output & Optimization
+- **Vendor Chunking:** The `@stellar/stellar-sdk` (~1.2MB) is isolated into a dedicated `stellar-vendor` chunk. This prevents it from bloating the main application bundle and ensures it is cached independently by the browser. Other third-party dependencies are grouped into a general `vendor` chunk.
+- **Environment Variables:** All `VITE_*` environment variables are strictly typed in `src/vite-env.d.ts`. TypeScript will enforce that required env vars are present and correctly typed at build time.
+- **Chunk Size Limit:** The Rollup warning limit is set to `600KB`. If a chunk exceeds this during `pnpm build`, it will trigger a warning, prompting the developer to investigate further code-splitting (e.g., using `React.lazy()`).
+
 ## Where to Start Reading
 
 1. [../README.md](../README.md)

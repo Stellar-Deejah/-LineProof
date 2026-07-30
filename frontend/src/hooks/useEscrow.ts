@@ -6,7 +6,7 @@ export type EscrowRecord = {
   id: string;
   queueId: string;
   identity: string;
-  amount: number;
+  amount: string;
   asset: string;
   status: 'Active' | 'Released' | 'Refunded' | 'Expired';
   createdAt: string;
@@ -19,7 +19,7 @@ export function useEscrow() {
   const [error, setError] = useState<string | null>(null);
   const [record, setRecord] = useState<EscrowRecord | null>(null);
 
-  const deposit = async (payload: { queueId: string; identity: string; amount: number; asset: string }): Promise<boolean> => {
+  const deposit = async (payload: { queueId: string; identity: string; amount: string; asset: string }): Promise<boolean> => {
     setLoading(true);
     setError(null);
     try {

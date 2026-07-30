@@ -1,5 +1,5 @@
 # Build context must be the monorepo root: docker build -f backend/Dockerfile .
-FROM node:20-alpine AS base
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS base
 RUN corepack enable && corepack prepare pnpm@9 --activate
 WORKDIR /repo
 
@@ -24,7 +24,7 @@ COPY backend/ ./backend/
 RUN pnpm --filter @lineproof/backend build
 
 # Minimal runtime image
-FROM node:20-alpine AS runtime
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS runtime
 
 RUN addgroup -S lineproof && adduser -S lineproof -G lineproof
 WORKDIR /app

@@ -14,8 +14,8 @@ Creates an escrow hold for a queue participant.
 {
   "queueId": "sneaker-drop-001",
   "identity": "GABC...XYZ",
-  "amount": 150,
-  "asset": "USDC",
+  "amount": "150.5",
+  "asset": "XLM",
   "holdDays": 30
 }
 ```
@@ -24,7 +24,7 @@ Creates an escrow hold for a queue participant.
 |-------|------|----------|-------|
 | `queueId` | string | ✓ | |
 | `identity` | string | ✓ | |
-| `amount` | number | ✓ | must be > 0 |
+| `amount` | string | ✓ | positive decimal XLM, at most 7 decimal places; max `17014118346046923173168730371588.4105727` |
 | `asset` | string | ✓ | e.g. `XLM`, `USDC` |
 | `holdDays` | integer | | defaults to 30 |
 
@@ -35,12 +35,20 @@ Creates an escrow hold for a queue participant.
   "id": "sneaker-drop-001:GABC...XYZ",
   "queueId": "sneaker-drop-001",
   "identity": "GABC...XYZ",
-  "amount": 150,
-  "asset": "USDC",
+  "amount": "1505000000",
+  "asset": "XLM",
   "status": "Active",
   "createdAt": "2025-07-01T10:00:00.000Z",
   "expiresAt": "2025-07-31T10:00:00.000Z"
 }
+```
+
+Response `amount` is a decimal string containing stroops so values remain exact in JSON. Its OpenAPI field schema is:
+
+```yaml
+amount:
+  type: string
+  pattern: '^[0-9]+$'
 ```
 
 **Response 400** — validation error

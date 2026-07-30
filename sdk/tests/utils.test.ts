@@ -12,7 +12,8 @@ import {
   nowSeconds,
   daysFromNow,
   truncateAddress,
-  generateTestKeypair,
+  validateSlug,
+  MAX_SLUG_LENGTH,
 } from '../src/utils';
 import { SDKError } from '../src/types';
 import { Keypair } from '@stellar/stellar-sdk';
@@ -129,9 +130,9 @@ describe('withRetry', () => {
     (networkError as any).code = 'ECONNRESET';
     const fn = vi.fn().mockRejectedValue(networkError);
 
-    const promise = withRetry(fn, { maxRetries: 2, timeoutMs: 5000, baseDelayMs: 10, jitterFactor: 0 });
-    await vi.advanceTimersByTimeAsync(1000);
-    await expect(promise).rejects.toThrow('Connection reset');
+    await expect(
+      withRetry(fn, { maxRetries: 2, timeoutMs: 5000, baseDelayMs: 10, jitterFactor: 0 })
+    ).rejects.toThrow('Connection reset');
     expect(fn).toHaveBeenCalledTimes(3);
   });
 
@@ -245,14 +246,14 @@ describe('createTimeoutPromise', () => {
   it('rejects after specified timeout', async () => {
     const promise = createTimeoutPromise(1000);
     vi.advanceTimersByTime(1000);
-    await expect(promise).rejects.toThrow('timed out after 1000ms');
+    await expect(promise).rejects.toThrow('Transaction submission timed out after 1000ms');
   });
 
   it('rejects immediately when signal is aborted', async () => {
     const controller = new AbortController();
     const promise = createTimeoutPromise(10000, controller.signal);
     controller.abort();
-    await expect(promise).rejects.toThrow('aborted');
+    await expect(promise).rejects.toThrow('Transaction submission aborted');
   });
 });
 
@@ -284,6 +285,10 @@ describe('toStroops / fromStroops', () => {
     expect(toStroops(0.5)).toBe(5_000_000n);
   });
 
+  it('converts large decimal strings without precision loss', () => {
+    expect(toStroops('900719925.4740992')).toBe(9_007_199_254_740_992n);
+  });
+
   it('converts back from stroops to readable', () => {
     expect(fromStroops(10_000_000n)).toBe('1');
     expect(fromStroops(5_000_000n)).toBe('0.5');
@@ -291,6 +296,94 @@ describe('toStroops / fromStroops', () => {
 
   it('throws for negative amounts', () => {
     expect(() => toStroops(-1)).toThrow(SDKError);
+  });
+
+  // ── #88: floating-point precision, input validation, string input ──
+
+  it('converts one stroop from a string without truncation', () => {
+    expect(toStroops('0.0000001')).toBe(1n);
+  });
+
+  it('converts one stroop from a number without floating-point truncation', () => {
+    // 0.0000001 * 10_000_000 is 0.09999999999999999 in float; the old
+    // implementation rounded that to 0n. The string path must return 1n.
+    expect(toStroops(0.0000001)).toBe(1n);
+  });
+
+  it('accepts both string and number inputs', () => {
+    expect(toStroops('123.456789')).toBe(toStroops(123.456789));
+    expect(toStroops('1')).toBe(10_000_000n);
+  });
+
+  it('throws SDKError for NaN', () => {
+    expect(() => toStroops(NaN)).toThrow(SDKError);
+    expect(() => toStroops(NaN)).toThrow(/finite/i);
+  });
+
+  it('throws SDKError for Infinity', () => {
+    expect(() => toStroops(Infinity)).toThrow(SDKError);
+    expect(() => toStroops(-Infinity)).toThrow(SDKError);
+  });
+
+  it('throws SDKError for a malformed string', () => {
+    expect(() => toStroops('abc')).toThrow(SDKError);
+    expect(() => toStroops('1.2.3')).toThrow(SDKError);
+  });
+
+  it('throws SDKError for negative string amounts', () => {
+    expect(() => toStroops('-5')).toThrow(SDKError);
+  });
+
+  it('throws SDKError for sub-stroop precision', () => {
+    expect(() => toStroops('0.00000001')).toThrow(SDKError);
+  });
+
+  it('throws SDKError for values that overflow i128', () => {
+    expect(() => toStroops('99999999999999999999999999999999')).toThrow(SDKError);
+  });
+
+  it('fromStroops handles whole numbers, fractions, one stroop, and large amounts', () => {
+    expect(fromStroops(10_000_000n)).toBe('1');
+    expect(fromStroops(1n)).toBe('0.0000001');
+    expect(fromStroops(5_000_000n)).toBe('0.5');
+    expect(fromStroops(123_456_789_000_0000n)).toBe('123456789');
+  });
+
+  it('round-trips a fractional amount, dropping trailing zeros', () => {
+    expect(fromStroops(toStroops('123.4567890'))).toBe('123.456789');
+  });
+});
+
+describe('validateSlug (#86)', () => {
+  it('accepts a typical hyphenated slug', () => {
+    expect(() => validateSlug('sneaker-drop-001')).not.toThrow();
+    expect(() => validateSlug('visa-appointment-001')).not.toThrow();
+    expect(() => validateSlug('q')).not.toThrow();
+  });
+
+  it('accepts a slug at the maximum length', () => {
+    expect(() => validateSlug('a'.repeat(MAX_SLUG_LENGTH))).not.toThrow();
+  });
+
+  it('rejects a slug over the maximum length', () => {
+    expect(() => validateSlug('a'.repeat(MAX_SLUG_LENGTH + 1))).toThrow(SDKError);
+  });
+
+  it('rejects an empty slug', () => {
+    expect(() => validateSlug('')).toThrow(SDKError);
+  });
+
+  it('rejects uppercase, spaces, and invalid characters', () => {
+    expect(() => validateSlug('Sneaker-Drop')).toThrow(SDKError);
+    expect(() => validateSlug('sneaker drop')).toThrow(SDKError);
+    expect(() => validateSlug('sneaker_drop')).toThrow(SDKError);
+    expect(() => validateSlug('sneaker.drop')).toThrow(SDKError);
+  });
+
+  it('rejects leading, trailing, or doubled hyphens', () => {
+    expect(() => validateSlug('-sneaker')).toThrow(SDKError);
+    expect(() => validateSlug('sneaker-')).toThrow(SDKError);
+    expect(() => validateSlug('sneaker--drop')).toThrow(SDKError);
   });
 });
 
@@ -322,20 +415,3 @@ describe('truncateAddress', () => {
   });
 });
 
-describe('generateTestKeypair', () => {
-  it('returns a publicKey starting with G', () => {
-    const kp = generateTestKeypair();
-    expect(kp.publicKey).toMatch(/^G/);
-  });
-
-  it('returns a secretKey starting with S', () => {
-    const kp = generateTestKeypair();
-    expect(kp.secretKey).toMatch(/^S/);
-  });
-
-  it('returns different keypairs on each call', () => {
-    const kp1 = generateTestKeypair();
-    const kp2 = generateTestKeypair();
-    expect(kp1.publicKey).not.toBe(kp2.publicKey);
-  });
-});

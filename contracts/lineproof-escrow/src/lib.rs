@@ -214,14 +214,13 @@ impl EscrowImpl {
     }
 }
 
-fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _amount: i128) {
-    env.events()
-        .publish((Symbol::new(env, "lineproof.escrow"), kind, queue_id));
-    env.events().publish((
-        Symbol::new(env, "lineproof_escrow"),
-        kind,
-        queue_id,
-    ), ());
+fn emit(env: &Env, kind: Symbol, queue_id: Symbol, identity: &Address, amount: i128) {
+    // #83: publish the depositor and amount as the event payload so auditors can
+    // rebuild escrow history from events alone, instead of an empty `()` body.
+    env.events().publish(
+        (Symbol::new(env, "lineproof_escrow"), kind, queue_id),
+        (identity.clone(), amount),
+    );
 }
 
 #[cfg(test)]

@@ -48,6 +48,20 @@ describe('deserializeContractEvent', () => {
     expect(result).toMatchObject({ namespace: 'lineproof.queue', kind: 'Initialized' });
   });
 
+  it('deserializes a queue ownership transfer with both admins', () => {
+    const event = rawEvent([
+      xdr.ScVal.scvString('lineproof.queue'),
+      xdr.ScVal.scvSymbol('OwnershipTransferred'),
+      xdr.ScVal.scvString('GOLDADMIN'),
+      xdr.ScVal.scvString('GNEWADMIN'),
+    ]);
+    expect(deserializeContractEvent(event)).toMatchObject({
+      kind: 'OwnershipTransferred',
+      previousAdmin: 'GOLDADMIN',
+      newAdmin: 'GNEWADMIN',
+    });
+  });
+
   it('deserializes a lineproof.enrollment:Enrolled event, decoding identity and proofHash when present', () => {
     const event = rawEvent([
       xdr.ScVal.scvSymbol('lineproof.enrollment'),

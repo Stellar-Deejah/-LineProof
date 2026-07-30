@@ -80,8 +80,57 @@ export function createRateLimiter(options: RateLimitOptions = {}) {
   };
 }
 
-/** Default rate limiter: 60 req/min per IP */
-export const defaultRateLimiter = createRateLimiter();
+/**
+ * Read a positive-integer limit from the environment, falling back to
+ * `fallback` when the variable is unset, empty, or not a positive number.
+ */
+function envInt(name: string, fallback: number): number {
+  const raw = (process.env[name] ?? '').trim();
+  if (raw.length === 0) return fallback;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
 
-/** Strict rate limiter for write operations: 20 req/min per IP */
-export const writeRateLimiter = createRateLimiter({ max: 20, message: 'Write rate limit exceeded.' });
+/** Shared window for every limiter unless overridden. Default: 60s. */
+const RATE_LIMIT_WINDOW_MS = envInt('RATE_LIMIT_WINDOW_MS', 60_000);
+
+/**
+ * Default rate limiter: 60 req/min per IP.
+ *
+ * Kept for backward compatibility. It is no longer mounted globally — routes
+ * now use the per-route limiters below so a burst on one route group cannot
+ * exhaust the quota of another (issue #108).
+ */
+export const defaultRateLimiter = createRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS });
+
+/**
+ * Read limiter for low-auth, read-only feeds (`/public`, `/api/queues`).
+ * Higher threshold so a monitoring service polling public data cannot starve
+ * the write routes or other IPs. Default: 600 req/min per IP.
+ */
+export const readLimiter = createRateLimiter({
+  max: envInt('READ_RATE_LIMIT_MAX', 600),
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  message: 'Read rate limit exceeded.',
+});
+
+/**
+ * Enrollment write limiter. A private counter namespace (see `createRateLimiter`)
+ * keeps it independent of {@link escrowLimiter}, so exhausting enrollment writes
+ * never blocks escrow deposits for the same IP. Default: 10 req/min per IP.
+ */
+export const enrollmentLimiter = createRateLimiter({
+  max: envInt('ENROLLMENT_RATE_LIMIT_MAX', 10),
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  message: 'Enrollment rate limit exceeded.',
+});
+
+/**
+ * Escrow write limiter. Independent of {@link enrollmentLimiter} by design.
+ * Default: 10 req/min per IP.
+ */
+export const escrowLimiter = createRateLimiter({
+  max: envInt('ESCROW_RATE_LIMIT_MAX', 10),
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  message: 'Escrow rate limit exceeded.',
+});

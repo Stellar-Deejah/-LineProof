@@ -1,5 +1,6 @@
 import { Router, type IRouter, Request, Response } from 'express';
 import { z } from 'zod';
+import { toStroops } from '@lineproof/sdk';
 import { depositEscrow, releaseEscrow, refundEscrow, expireEscrow, getEscrow } from '../services/escrowService.js';
 import { recordEscrowDeposit, recordEscrowClosed } from '../metrics/registry.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -8,14 +9,15 @@ import { StellarAddress } from '../schemas/stellar.js';
 import { NotFoundError, ValidationError } from '../errors/index.js';
 
 const router: IRouter = Router();
+const MAX_I128_STROOPS = (1n << 127n) - 1n;
 
 const DepositSchema = z.object({
   queueId: z.string().min(1),
   identity: StellarAddress,
-  amount: z.number().positive(),
+  amount: z.string().regex(/^\d+(?:\.\d{1,7})?$/),
   asset: z.string().min(1),
   holdDays: z.number().int().positive().optional(),
-});
+}).strict();
 
 const EscrowActionSchema = z.object({
   escrowId: z.string().min(1).refine(
@@ -29,7 +31,7 @@ const EscrowActionSchema = z.object({
       message: 'Invalid escrowId format. Must be ${queueId}:${identity} where identity is a valid Stellar address.',
     }
   ),
-});
+}).strict();
 
 type DepositInput = z.infer<typeof DepositSchema>;
 type EscrowActionInput = z.infer<typeof EscrowActionSchema>;
@@ -39,7 +41,14 @@ router.post('/deposit', validateStellarAddress(['identity']), (req: Request<{}, 
     const parsed = DepositSchema.safeParse(req.body);
     if (!parsed.success) throw new ValidationError('Invalid request', { issues: parsed.error.issues });
 
-    const record = depositEscrow(parsed.data);
+    let amount: bigint;
+    try {
+      amount = toStroops(parsed.data.amount);
+    } catch (e) {
+      throw new ValidationError('Invalid amount format or value');
+    }
+    if (amount === 0n || amount > MAX_I128_STROOPS) throw new ValidationError('Amount is outside the positive i128 range');
+    const record = depositEscrow({ ...parsed.data, amount });
     recordEscrowDeposit(record.asset);
     res.status(201).json(record);
   } catch (err) {

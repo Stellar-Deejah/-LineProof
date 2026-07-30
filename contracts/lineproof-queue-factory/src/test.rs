@@ -205,26 +205,6 @@ fn test_deploy_rejects_unapproved_hash() {
         1,
         BytesN::new(&env, &[7u8; 32]),
     );
-        soroban_sdk::BytesN::new(&env, &[5u8; 32]),
-        2,
-    );
-    QueueFactoryImpl::upgrade_queue(env.clone(), admin, slug, 1, soroban_sdk::BytesN::new(&env, &[6u8; 32]));
-}
-
-#[test]
-#[should_panic(expected = "WASM hash not approved")]
-fn test_deploy_rejects_unapproved_hash() {
-    let (env, admin) = setup();
-    init(&env, &admin);
-    QueueFactoryImpl::register_approved_hash(env.clone(), admin, 1, soroban_sdk::BytesN::new(&env, &[7u8; 32]));
-    QueueFactoryImpl::deploy_queue(
-        env.clone(),
-        Address::new(&env, &[2u8; 7]),
-        Symbol::new(&env, "unapproved"),
-        Symbol::new(&env, "U"),
-        1,
-        soroban_sdk::BytesN::new(&env, &[8u8; 32]),
-    );
 }
 
 #[test]

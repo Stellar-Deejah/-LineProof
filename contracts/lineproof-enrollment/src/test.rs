@@ -1,12 +1,8 @@
 use soroban_sdk::{
     testutils::{Address as AddressTrait, Events as EventsTrait, Ledger as LedgerTrait},
-    Address, Env, Symbol, TryFromVal, BytesN,
+    Address, BytesN, Env, Symbol, TryFromVal,
 };
 
-use crate::{DuplicateBehavior, Enrollment, EnrollmentImpl};
-
-fn setup() -> (Env, Address) {
-    let env = Env::default();
 use crate::{DuplicateBehavior, EnrollmentImpl, EnrollmentImplClient};
 
 fn setup() -> (Env, Address) {
@@ -169,20 +165,23 @@ fn test_cancel_emits_original_hash() {
     let client = EnrollmentImplClient::new(&env, &contract_id);
     let queue_id = Symbol::new(&env, "health");
     let proof = client.enroll(&caller, &queue_id, &None);
-    
+
     client.cancel(&caller, &queue_id);
-    
+
     let events = env.events().all();
     let cancel_event = events.last().unwrap();
-    
+
     let topics = cancel_event.1;
     // topic[0] is lineproof_enrollment, topic[1] is Cancelled, topic[2] is queue_id
-    assert_eq!(topics.get(1).unwrap(), soroban_sdk::IntoVal::into_val(&Symbol::new(&env, "Cancelled"), &env));
+    assert_eq!(
+        topics.get(1).unwrap(),
+        soroban_sdk::IntoVal::into_val(&Symbol::new(&env, "Cancelled"), &env)
+    );
     assert_eq!(
         Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(),
         Symbol::new(&env, "Cancelled")
     );
-    
+
     let data = cancel_event.2;
     let (identity, _timestamp, hash): (Address, u64, BytesN<32>) = soroban_sdk::FromVal::from_val(&env, &data);
     assert_eq!(identity, caller);
@@ -195,7 +194,7 @@ fn test_set_duplicate_behavior_emits_event() {
     let contract_id = env.register(EnrollmentImpl, ());
     let client = EnrollmentImplClient::new(&env, &contract_id);
     client.set_duplicate_behavior(&admin, &DuplicateBehavior::GrantWaitingList);
-    
+
     let events = env.events().all();
     let change_event = events.last().unwrap();
     let topics = change_event.1;
@@ -214,18 +213,18 @@ fn test_waitlist_addition_and_queries() {
     let contract_id = env.register(EnrollmentImpl, ());
     let client = EnrollmentImplClient::new(&env, &contract_id);
     let queue_id = Symbol::new(&env, "wait_queue");
-    
+
     // First enrollment (active)
     client.enroll(&caller, &queue_id, &None);
     assert!(client.is_enrolled(&caller, &queue_id));
-    
+
     // Set behavior to waiting list
     let admin = Address::generate(&env);
     client.set_duplicate_behavior(&admin, &DuplicateBehavior::GrantWaitingList);
-    
+
     // Second enrollment (adds to waitlist)
     let proof = client.enroll(&caller, &queue_id, &None);
-    
+
     // WaitlistAdded event verification (query immediately before read-only functions clear it)
     let events = env.events().all();
     let waitlist_event = events.last().unwrap();
@@ -234,23 +233,20 @@ fn test_waitlist_addition_and_queries() {
         Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(),
         Symbol::new(&env, "WaitlistAdded")
     );
-    
+
     // The proof should contain a zero hash
     let zero_hash = BytesN::from_array(&env, &[0u8; 32]);
     assert_eq!(proof.proof_hash, zero_hash);
-    
+
     // Should still only have 1 active enrollment (caller)
     assert!(client.is_enrolled(&caller, &queue_id));
-    
+
     // Waitlist queries
     let waitlist = client.get_waitlist(&queue_id);
     assert_eq!(waitlist.len(), 1);
     assert_eq!(waitlist.get(0).unwrap(), caller);
-    
-    assert_eq!(
-        client.waitlist_position(&caller, &queue_id),
-        Some(0)
-    );
+
+    assert_eq!(client.waitlist_position(&caller, &queue_id), Some(0));
 }
 
 #[test]
@@ -260,12 +256,12 @@ fn test_waitlist_prevent_duplicate_waitlist_entry() {
     let contract_id = env.register(EnrollmentImpl, ());
     let client = EnrollmentImplClient::new(&env, &contract_id);
     let queue_id = Symbol::new(&env, "wait_dup");
-    
+
     client.enroll(&caller, &queue_id, &None);
-    
+
     let admin = Address::generate(&env);
     client.set_duplicate_behavior(&admin, &DuplicateBehavior::GrantWaitingList);
-    
+
     client.enroll(&caller, &queue_id, &None);
     client.enroll(&caller, &queue_id, &None);
 }
@@ -277,35 +273,35 @@ fn test_waitlist_promotion() {
     let client = EnrollmentImplClient::new(&env, &contract_id);
     let u2 = Address::generate(&env);
     let queue_id = Symbol::new(&env, "promo_queue");
-    
+
     // Enroll u1 actively
     client.enroll(&u1, &queue_id, &None);
-    
+
     // Set to waitlist
     let admin = Address::generate(&env);
     client.set_duplicate_behavior(&admin, &DuplicateBehavior::GrantWaitingList);
-    
+
     // Waitlist u1 and u2 (note: u2 must be enrolled actively first so they can try to duplicate-enroll)
     client.enroll(&u2, &queue_id, &None); // u2 enrolled
-    
+
     client.enroll(&u1, &queue_id, &None); // u1 waitlisted
     client.enroll(&u2, &queue_id, &None); // u2 waitlisted
-    
+
     let waitlist_before = client.get_waitlist(&queue_id);
     assert_eq!(waitlist_before.len(), 2);
     assert_eq!(waitlist_before.get(0).unwrap(), u1);
     assert_eq!(waitlist_before.get(1).unwrap(), u2);
-    
+
     // Promote 1 user (u1)
     client.promote_from_waitlist(&admin, &queue_id, &1);
-    
+
     let waitlist_after_1 = client.get_waitlist(&queue_id);
     assert_eq!(waitlist_after_1.len(), 1);
     assert_eq!(waitlist_after_1.get(0).unwrap(), u2);
-    
+
     // Promote remaining (u2)
     client.promote_from_waitlist(&admin, &queue_id, &1);
-    
+
     let waitlist_after_2 = client.get_waitlist(&queue_id);
     assert_eq!(waitlist_after_2.len(), 0);
 }
@@ -316,24 +312,24 @@ fn test_override_expired_success() {
     let contract_id = env.register(EnrollmentImpl, ());
     let client = EnrollmentImplClient::new(&env, &contract_id);
     let queue_id = Symbol::new(&env, "expiry_q");
-    
+
     // Initial enrollment with expiry at 100
     let expiry = Some(100u64);
     client.enroll(&caller, &queue_id, &expiry);
-    
+
     // Set duplicate behavior to OverrideExpired
     let admin = Address::generate(&env);
     client.set_duplicate_behavior(&admin, &DuplicateBehavior::OverrideExpired);
-    
+
     // Advance ledger time to 105 (expired)
     env.ledger().set_timestamp(105);
-    
+
     // Enroll again (should succeed and override)
     let proof = client.enroll(&caller, &queue_id, &Some(200));
-    
+
     assert_eq!(proof.enrolled_at, 105);
     assert_eq!(proof.expires_at, Some(200));
-    
+
     let record = client.enrollment_record(&caller, &queue_id).unwrap();
     assert_eq!(record.enrolled_at, 105);
     assert_eq!(record.expires_at, Some(200));
@@ -347,18 +343,18 @@ fn test_override_expired_rejection() {
     let contract_id = env.register(EnrollmentImpl, ());
     let client = EnrollmentImplClient::new(&env, &contract_id);
     let queue_id = Symbol::new(&env, "expiry_fail_q");
-    
+
     // Initial enrollment with expiry at 100
     let expiry = Some(100u64);
     client.enroll(&caller, &queue_id, &expiry);
-    
+
     // Set duplicate behavior to OverrideExpired
     let admin = Address::generate(&env);
     client.set_duplicate_behavior(&admin, &DuplicateBehavior::OverrideExpired);
-    
+
     // Keep ledger time at 50 (not expired)
     env.ledger().set_timestamp(50);
-    
+
     // Enroll again (should fail because not expired)
     client.enroll(&caller, &queue_id, &Some(200));
 }

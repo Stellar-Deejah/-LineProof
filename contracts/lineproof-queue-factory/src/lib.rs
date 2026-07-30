@@ -6,8 +6,6 @@ const QUEUE_REGISTRY_PREFIX: &str = "queue";
 const SLUG_INDEX_KEY: &str = "slug_idx";
 /// Storage key prefix for approved queue WASM hashes, keyed by version.
 const APPROVED_HASH_PREFIX: &str = "approved";
-/// Storage key prefix for version-to-WASM-hash approvals.
-const APPROVED_HASH_PREFIX: &str = "approved";
 /// Set after the first hash approval, preserving compatibility until then.
 const APPROVED_REGISTRY_ENABLED_KEY: &str = "approvals";
 
@@ -51,7 +49,6 @@ pub trait QueueFactory {
     fn deactivate_queue(env: Env, admin: Address, slug: Symbol);
     fn reactivate_queue(env: Env, admin: Address, slug: Symbol);
     fn destroy_queue(env: Env, admin: Address, slug: Symbol);
-    fn register_approved_hash(env: Env, admin: Address, version: u32, wasm_hash: BytesN<32>);
     fn set_config(env: Env, admin: Address, min_version: u32, max_version: u32);
     fn get_queue(env: Env, slug: Symbol) -> Option<QueueMetadata>;
     fn list_queues(env: Env) -> Vec<Symbol>;
@@ -178,15 +175,6 @@ impl QueueFactory for QueueFactoryImpl {
         );
     }
 
-    fn register_approved_hash(env: Env, admin: Address, version: u32, wasm_hash: BytesN<32>) {
-        Self::require_admin(&env, &admin);
-        let key = Self::approved_hash_key(&env, version);
-        env.storage().persistent().set(&key, &wasm_hash);
-        env.storage()
-            .persistent()
-            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-    }
-
     fn deactivate_queue(env: Env, admin: Address, slug: Symbol) {
         Self::require_admin(&env, &admin);
         let mut metadata = Self::get_queue_meta(&env, &slug);
@@ -250,20 +238,6 @@ impl QueueFactory for QueueFactoryImpl {
         );
     }
 
-    fn register_approved_hash(env: Env, admin: Address, version: u32, wasm_hash: BytesN<32>) {
-        Self::require_admin(&env, &admin);
-        let key = Self::approved_hash_key(&env, version);
-        env.storage().persistent().set(&key, &wasm_hash);
-        env.storage()
-            .persistent()
-            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        let enabled_key = Symbol::new(&env, APPROVED_REGISTRY_ENABLED_KEY);
-        env.storage().persistent().set(&enabled_key, &true);
-        env.storage()
-            .persistent()
-            .extend_ttl(&enabled_key, TTL_THRESHOLD, TTL_EXTEND_TO);
-    }
-
     fn set_config(env: Env, admin: Address, min_version: u32, max_version: u32) {
         Self::require_admin(&env, &admin);
         let config_key = Symbol::new(&env, "config");
@@ -320,6 +294,8 @@ impl QueueFactory for QueueFactoryImpl {
         env.storage()
             .persistent()
             .extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        // Upgrade the WASM code. The queue contract should call migrate() afterward
+        // if storage transformations are needed for the new version.
         env.deployer()
             .with_current_contract(&new_wasm_hash)
             .upgrade(&contract_id);
@@ -338,13 +314,10 @@ impl QueueFactoryImpl {
     fn require_admin(env: &Env, admin: &Address) {
         admin.require_auth();
         let config_key = Symbol::new(env, "config");
-        let config: FactoryConfig = env.storage().persistent().get(&config_key).unwrap();
-        if config.admin != *admin {
-            panic!("unauthorized admin");
         let config: FactoryConfig = env
             .storage()
             .persistent()
-            .get(&Symbol::new(env, "config"))
+            .get(&config_key)
             .unwrap_or_else(|| panic!("not initialized"));
         if config.admin != *admin {
             panic!("not authorized");
@@ -364,6 +337,9 @@ impl QueueFactoryImpl {
             env.storage()
                 .persistent()
                 .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        }
+    }
+
     fn require_approved_hash(env: &Env, version: u32, wasm_hash: &BytesN<32>) {
         let enabled_key = Symbol::new(env, APPROVED_REGISTRY_ENABLED_KEY);
         if !env.storage().persistent().get::<_, bool>(&enabled_key).unwrap_or(false) {
@@ -434,10 +410,12 @@ impl QueueFactoryImpl {
     }
 }
 
-fn emit(env: &Env, kind: Symbol, slug: Symbol, _contract_id: BytesN<32>, version: u32, _timestamp: u64) {
-    env.events()
-        .publish((Symbol::new(env, "lineproof.factory"), kind, slug, version));
-        .publish((Symbol::new(env, "lineproof_factory"), kind, slug, version), ());
+fn emit(env: &Env, kind: Symbol, slug: Symbol, contract_id: BytesN<32>, version: u32, _timestamp: u64) {
+    // #83: carry the deployed contract id and version in the event payload.
+    env.events().publish(
+        (Symbol::new(env, "lineproof_factory"), kind, slug),
+        (contract_id.clone(), version),
+    );
 }
 
 #[cfg(test)]
