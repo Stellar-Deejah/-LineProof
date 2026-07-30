@@ -8,12 +8,9 @@ const app = createApp();
 
 vi.mock('../../services/escrowService.js');
 
-<<<<<<< HEAD
 const TEST_API_KEY = 'test-api-key-12345678';
-=======
 const VALID_IDENTITY = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
 const VALID_ESCROW_ID = `q1:${VALID_IDENTITY}`;
->>>>>>> upstream/main
 
 describe('Escrow Routes', () => {
   beforeAll(() => {

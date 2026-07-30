@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
-import { app } from '../../app.js';
+import { createApp } from '../../app.js';
+const app = createApp();
 import * as queueService from '../../services/queueService.js';
 import * as escrowService from '../../services/escrowService.js';
 

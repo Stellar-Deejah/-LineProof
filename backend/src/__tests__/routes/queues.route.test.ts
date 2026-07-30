@@ -118,7 +118,6 @@ describe('Queues Routes', () => {
     });
 
     it('returns 201 on success', async () => {
-<<<<<<< HEAD
       vi.mocked(queueService.createQueue).mockReturnValue({ id: 'q1', slug: 'q1' } as any);
       const res = await request(app)
         .post('/api/queues')
@@ -130,19 +129,6 @@ describe('Queues Routes', () => {
           maxPositions: 10,
           advancementRule: 'FIFO'
         });
-=======
-      vi.mocked(queueService.createQueue).mockReturnValue({
-        id: 'q1',
-        slug: 'q1',
-      } as any);
-      const res = await request(app).post('/api/queues').send({
-        name: 'q1',
-        slug: 'q1',
-        description: 'desc',
-        maxPositions: 10,
-        advancementRule: 'FIFO',
-      });
->>>>>>> upstream/main
       expect(res.status).toBe(201);
       expect(res.body).toEqual({ id: 'q1', slug: 'q1' });
     });

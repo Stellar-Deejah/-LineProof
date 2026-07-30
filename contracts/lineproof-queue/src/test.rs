@@ -497,7 +497,6 @@ fn test_advance_empty_queue_returns_empty_vec() {
 
 #[test]
 fn test_upgrade_requires_admin_auth() {
-fn test_expire_position() {
     let (env, admin, contract_id) = setup();
     let config = make_config(&env, &admin);
     let client = QueueImplClient::new(&env, &contract_id);
