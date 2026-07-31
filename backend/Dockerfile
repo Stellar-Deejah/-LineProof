@@ -11,7 +11,6 @@ COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
 # Install only backend + sdk dependencies
 RUN pnpm install --frozen-lockfile --filter @lineproof/backend...
-RUN pnpm install --frozen-lockfile --filter @lineproof/backend... 
 
 # Build SDK first (backend depends on it)
 FROM deps AS build-sdk
@@ -40,8 +39,8 @@ COPY --from=build-sdk --chown=lineproof:lineproof /repo/sdk/package.json /app/no
 ENV NODE_ENV=production
 EXPOSE 4000
 
-HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:4000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 --start-period=10s \
+  CMD node -e "const http = require('http'); http.get('http://localhost:4000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 USER lineproof
 CMD ["node", "dist/index.js"]
