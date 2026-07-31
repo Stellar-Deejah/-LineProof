@@ -7,7 +7,7 @@ import { EventIndexer } from './services/eventIndexer.js';
 
 validateStartupConfig(config);
 const allowedOrigins = corsOriginsFromEnvironment();
-const app = createApp(allowedOrigins);
+const app = createApp();
 console.log(
   lineproofClient ? `[contracts] configured mode (${lineproofClient.canWrite ? 'read/write' : 'read-only; OPERATOR_SECRET_KEY absent'})` : '[contracts] mock mode (no contract IDs configured)',
 );

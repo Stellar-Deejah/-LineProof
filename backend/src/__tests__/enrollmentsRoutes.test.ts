@@ -76,7 +76,6 @@ describe('Enrollments Routes - Stellar Address Validation', () => {
       const { enrollIdentity } = await import('../services/enrollmentService.js');
       vi.mocked(enrollIdentity).mockReturnValue({
         queueId: 'test-queue',
-        identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         identity: VALID_KEY,
         enrolledAt: new Date().toISOString(),
         conflict: false,
@@ -87,7 +86,6 @@ describe('Enrollments Routes - Stellar Address Validation', () => {
         .post('/api/enrollments/enroll')
         .send({
           queueId: 'test-queue',
-          identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
           identity: VALID_KEY,
         });
 
@@ -132,7 +130,6 @@ describe('Enrollments Routes - Stellar Address Validation', () => {
         .post('/api/enrollments/cancel')
         .send({
           queueId: 'test-queue',
-          identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
           identity: VALID_KEY,
         });
 

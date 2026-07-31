@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../app.js';
 import * as escrowService from '../../services/escrowService.js';
@@ -8,10 +8,19 @@ const app = createApp();
 
 vi.mock('../../services/escrowService.js');
 
+const TEST_API_KEY = 'test-api-key-12345678';
 const VALID_IDENTITY = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
 const VALID_ESCROW_ID = `q1:${VALID_IDENTITY}`;
 
 describe('Escrow Routes', () => {
+  beforeAll(() => {
+    process.env.OPERATOR_API_KEY = TEST_API_KEY;
+  });
+
+  afterAll(() => {
+    delete process.env.OPERATOR_API_KEY;
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     defaultMemoryAdapter.reset();
@@ -71,14 +80,20 @@ describe('Escrow Routes', () => {
   describe('POST /api/escrow/release', () => {
     it('returns 404 if escrow not found', async () => {
       vi.mocked(escrowService.releaseEscrow).mockReturnValue(undefined);
-      const res = await request(app).post('/api/escrow/release').send({ escrowId: VALID_ESCROW_ID });
+      const res = await request(app)
+        .post('/api/escrow/release')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ escrowId: VALID_ESCROW_ID });
       expect(res.status).toBe(404);
     });
 
     it('returns 200 on success', async () => {
       const record = { id: VALID_ESCROW_ID, queueId: 'q1', identity: VALID_IDENTITY, amount: 10, asset: 'USDC', status: 'Released', createdAt: '', expiresAt: '' };
       vi.mocked(escrowService.releaseEscrow).mockReturnValue(record as any);
-      const res = await request(app).post('/api/escrow/release').send({ escrowId: VALID_ESCROW_ID });
+      const res = await request(app)
+        .post('/api/escrow/release')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ escrowId: VALID_ESCROW_ID });
       expect(res.status).toBe(200);
     });
   });
@@ -86,14 +101,20 @@ describe('Escrow Routes', () => {
   describe('POST /api/escrow/refund', () => {
     it('returns 404 if escrow not found', async () => {
       vi.mocked(escrowService.refundEscrow).mockReturnValue(undefined);
-      const res = await request(app).post('/api/escrow/refund').send({ escrowId: VALID_ESCROW_ID });
+      const res = await request(app)
+        .post('/api/escrow/refund')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ escrowId: VALID_ESCROW_ID });
       expect(res.status).toBe(404);
     });
 
     it('returns 200 on success', async () => {
       const record = { id: VALID_ESCROW_ID, queueId: 'q1', identity: VALID_IDENTITY, amount: 10, asset: 'USDC', status: 'Refunded', createdAt: '', expiresAt: '' };
       vi.mocked(escrowService.refundEscrow).mockReturnValue(record as any);
-      const res = await request(app).post('/api/escrow/refund').send({ escrowId: VALID_ESCROW_ID });
+      const res = await request(app)
+        .post('/api/escrow/refund')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ escrowId: VALID_ESCROW_ID });
       expect(res.status).toBe(200);
     });
   });
@@ -101,14 +122,20 @@ describe('Escrow Routes', () => {
   describe('POST /api/escrow/expire', () => {
     it('returns 404 if escrow not found', async () => {
       vi.mocked(escrowService.expireEscrow).mockReturnValue(undefined);
-      const res = await request(app).post('/api/escrow/expire').send({ escrowId: VALID_ESCROW_ID });
+      const res = await request(app)
+        .post('/api/escrow/expire')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ escrowId: VALID_ESCROW_ID });
       expect(res.status).toBe(404);
     });
 
     it('returns 200 on success', async () => {
       const record = { id: VALID_ESCROW_ID, queueId: 'q1', identity: VALID_IDENTITY, amount: 10, asset: 'USDC', status: 'Expired', createdAt: '', expiresAt: '' };
       vi.mocked(escrowService.expireEscrow).mockReturnValue(record as any);
-      const res = await request(app).post('/api/escrow/expire').send({ escrowId: VALID_ESCROW_ID });
+      const res = await request(app)
+        .post('/api/escrow/expire')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ escrowId: VALID_ESCROW_ID });
       expect(res.status).toBe(200);
     });
   });

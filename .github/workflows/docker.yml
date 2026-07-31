@@ -58,23 +58,25 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Smoke test backend container
         run: |
-          docker run --rm -d --name lineproof-test \
+          docker run -d --name lineproof-test \
             -e NODE_ENV=test \
             -e PORT=4000 \
             -p 4000:4000 \
             "${{ steps.img-tag.outputs.value }}"
-          for i in $(seq 1 10); do
+          for i in $(seq 1 20); do
             if curl -sf http://localhost:4000/health > /dev/null 2>&1; then
               echo "Health check passed"
               docker stop lineproof-test
+              docker rm lineproof-test
               exit 0
             fi
             echo "Waiting for container... attempt $i"
-            sleep 2
+            sleep 3
           done
           echo "Health check failed — container logs:"
           docker logs lineproof-test
           docker stop lineproof-test
+          docker rm lineproof-test
           exit 1
       - name: Scan backend image for CVEs
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
@@ -138,19 +140,21 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Smoke test frontend container
         run: |
-          docker run --rm -d --name lineproof-frontend-test -p 8080:80 "${{ steps.img-tag.outputs.value }}"
-          for i in $(seq 1 10); do
+          docker run -d --name lineproof-frontend-test -p 8080:80 "${{ steps.img-tag.outputs.value }}"
+          for i in $(seq 1 20); do
             if curl -sf http://localhost:8080/ > /dev/null 2>&1; then
               echo "Frontend health check passed"
               docker stop lineproof-frontend-test
+              docker rm lineproof-frontend-test
               exit 0
             fi
             echo "Waiting for frontend... attempt $i"
-            sleep 2
+            sleep 3
           done
           echo "Frontend health check failed — container logs:"
           docker logs lineproof-frontend-test
           docker stop lineproof-frontend-test
+          docker rm lineproof-frontend-test
           exit 1
       - name: Scan frontend image for CVEs
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0

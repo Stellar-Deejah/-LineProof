@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import escrowRouter from '../routes/escrow.js';
@@ -21,9 +21,18 @@ vi.mock('../metrics/registry.js', () => ({
 
 const VALID_KEY = 'G' + 'A'.repeat(55);
 const INVALID_S_KEY = 'S' + 'A'.repeat(55);
+const TEST_API_KEY = 'test-api-key-12345678';
 
 describe('Escrow Routes - Stellar Address Validation', () => {
   let app: express.Application;
+
+  beforeAll(() => {
+    process.env.OPERATOR_API_KEY = TEST_API_KEY;
+  });
+
+  afterAll(() => {
+    delete process.env.OPERATOR_API_KEY;
+  });
 
   beforeEach(() => {
     app = express();
@@ -70,9 +79,6 @@ describe('Escrow Routes - Stellar Address Validation', () => {
     it('should accept valid G-prefixed Stellar address', async () => {
       const { depositEscrow } = await import('../services/escrowService.js');
       vi.mocked(depositEscrow).mockReturnValue({
-        id: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-        queueId: 'test-queue',
-        identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         id: `test-queue:${VALID_KEY}`,
         queueId: 'test-queue',
         identity: VALID_KEY,
@@ -80,7 +86,6 @@ describe('Escrow Routes - Stellar Address Validation', () => {
         asset: 'XLM',
         status: 'Active',
         createdAt: new Date().toISOString(),
-        expiresAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 86400000).toISOString(),
       });
 
@@ -88,7 +93,6 @@ describe('Escrow Routes - Stellar Address Validation', () => {
         .post('/api/escrow/deposit')
         .send({
           queueId: 'test-queue',
-          identity: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
           identity: VALID_KEY,
           amount: '0.00001',
           asset: 'XLM',
@@ -102,6 +106,7 @@ describe('Escrow Routes - Stellar Address Validation', () => {
     it('should reject escrowId with invalid embedded identity', async () => {
       const response = await request(app)
         .post('/api/escrow/release')
+        .set('X-API-Key', TEST_API_KEY)
         .send({
           escrowId: `test-queue:${INVALID_S_KEY}`,
         });
@@ -115,6 +120,7 @@ describe('Escrow Routes - Stellar Address Validation', () => {
     it('should reject escrowId without colon separator', async () => {
       const response = await request(app)
         .post('/api/escrow/release')
+        .set('X-API-Key', TEST_API_KEY)
         .send({
           escrowId: 'invalid-escrow-id',
         });
@@ -132,13 +138,6 @@ describe('Escrow Routes - Stellar Address Validation', () => {
         amount: 100,
         asset: 'XLM',
         status: 'Released',
-        id: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date().toISOString(),
-        identity: VALID_KEY,
-        amount: 100,
-        asset: 'XLM',
-        status: 'Released',
         createdAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 86400000).toISOString(),
         releasedAt: new Date().toISOString(),
@@ -146,8 +145,8 @@ describe('Escrow Routes - Stellar Address Validation', () => {
 
       const response = await request(app)
         .post('/api/escrow/release')
+        .set('X-API-Key', TEST_API_KEY)
         .send({
-          escrowId: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
           escrowId: `test-queue:${VALID_KEY}`,
         });
 
@@ -159,6 +158,7 @@ describe('Escrow Routes - Stellar Address Validation', () => {
     it('should reject escrowId with invalid embedded identity', async () => {
       const response = await request(app)
         .post('/api/escrow/refund')
+        .set('X-API-Key', TEST_API_KEY)
         .send({
           escrowId: `test-queue:${INVALID_S_KEY}`,
         });
@@ -178,21 +178,14 @@ describe('Escrow Routes - Stellar Address Validation', () => {
         amount: 100,
         asset: 'XLM',
         status: 'Refunded',
-        id: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date().toISOString(),
-        identity: VALID_KEY,
-        amount: 100,
-        asset: 'XLM',
-        status: 'Refunded',
         createdAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 86400000).toISOString(),
       });
 
       const response = await request(app)
         .post('/api/escrow/refund')
+        .set('X-API-Key', TEST_API_KEY)
         .send({
-          escrowId: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
           escrowId: `test-queue:${VALID_KEY}`,
         });
 
@@ -204,6 +197,7 @@ describe('Escrow Routes - Stellar Address Validation', () => {
     it('should reject escrowId with invalid embedded identity', async () => {
       const response = await request(app)
         .post('/api/escrow/expire')
+        .set('X-API-Key', TEST_API_KEY)
         .send({
           escrowId: `test-queue:${INVALID_S_KEY}`,
         });
@@ -223,21 +217,14 @@ describe('Escrow Routes - Stellar Address Validation', () => {
         amount: 100,
         asset: 'XLM',
         status: 'Expired',
-        id: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date().toISOString(),
-        identity: VALID_KEY,
-        amount: 100,
-        asset: 'XLM',
-        status: 'Expired',
         createdAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 86400000).toISOString(),
       });
 
       const response = await request(app)
         .post('/api/escrow/expire')
+        .set('X-API-Key', TEST_API_KEY)
         .send({
-          escrowId: 'test-queue:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
           escrowId: `test-queue:${VALID_KEY}`,
         });
 

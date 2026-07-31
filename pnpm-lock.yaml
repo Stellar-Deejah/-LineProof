@@ -3362,6 +3362,15 @@ snapshots:
 
   '@csstools/css-tokenizer@3.0.4': {}
 
+<<<<<<< HEAD
+  '@csstools/css-tokenizer@4.0.0':
+    optional: true
+
+  '@esbuild/aix-ppc64@0.21.5':
+    optional: true
+
+=======
+>>>>>>> upstream/main
   '@esbuild/aix-ppc64@0.25.12':
     optional: true
 

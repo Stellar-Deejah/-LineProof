@@ -92,7 +92,7 @@ describe('page accessibility', () => {
     await user.type(await screen.findByRole('textbox', { name: 'Stellar public key' }), `G${'A'.repeat(55)}`);
     await user.click(screen.getByRole('button', { name: 'Enroll now' }));
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Enrolled successfully');
+    expect(await screen.findByText('Enrolled successfully. This position is bound to your identity and cannot be transferred or resold.')).toBeInTheDocument();
   });
 
   it('reports no axe violations on DashboardPage and announces lookup errors', async () => {
