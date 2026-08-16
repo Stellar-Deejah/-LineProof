@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+﻿import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -92,7 +92,8 @@ describe('page accessibility', () => {
     await user.type(await screen.findByRole('textbox', { name: 'Stellar public key' }), `G${'A'.repeat(55)}`);
     await user.click(screen.getByRole('button', { name: 'Enroll now' }));
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Enrolled successfully');
+    const statusEls = await screen.findAllByRole('status');
+    expect(statusEls.some((el) => el.textContent?.includes('Enrolled successfully'))).toBe(true);
   });
 
   it('reports no axe violations on DashboardPage and announces lookup errors', async () => {
@@ -104,9 +105,10 @@ describe('page accessibility', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByRole('textbox', { name: 'Stellar public key' }), 'GINVALID');
+    await user.type(screen.getByRole('textbox', { name: 'Stellar public key' }), `G${'A'.repeat(55)}`);
     await user.click(screen.getByRole('button', { name: 'Lookup' }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Network error'));
     expect(await axe(container)).toHaveNoViolations();
   });
 });
+

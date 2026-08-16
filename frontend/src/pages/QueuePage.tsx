@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { isValidStellarAddress } from '../utils/stellar';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ShieldCheck, Users, Clock } from 'lucide-react';
 import { useQueue } from '../hooks/useQueues';
@@ -33,12 +34,10 @@ export default function QueuePage() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const { cancel, loading: cancelling, error: cancelError } = useEnrollment();
 
-  const looksLikeStellar = (v: string) => /^G[A-Z0-9]{55}$/.test(v);
-
   const handleEnroll = async (e: FormEvent) => {
     e.preventDefault();
     setInputError(null);
-    if (!looksLikeStellar(publicKey)) {
+    if (!isValidStellarAddress(publicKey)) {
       setInputError('Enter a valid Stellar public key (starts with G, 56 characters).');
       return;
     }

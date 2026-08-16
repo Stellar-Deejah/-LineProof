@@ -4,6 +4,7 @@ import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import CopyButton from '../components/CopyButton';
 import AlertBanner from '../components/AlertBanner';
+import { isValidStellarAddress } from '../utils/stellar';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
 
@@ -28,6 +29,11 @@ export default function DashboardPage() {
 
   const lookup = async () => {
     if (!publicKey.trim()) return;
+    if (!isValidStellarAddress(publicKey.trim())) {
+      setError('Enter a valid Stellar public key (starts with G, 56 characters).');
+      setSearched(true);
+      return;
+    }
     setLoading(true);
     setError(null);
     setSearched(true);
