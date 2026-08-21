@@ -30,6 +30,32 @@ fn test_set_and_get_config() {
 }
 
 #[test]
+#[should_panic(expected = "escrow_not_configured")]
+fn test_deposit_without_config_blocks_self_admin_attack() {
+    let (env, _) = setup();
+    let depositor = Address::generate(&env);
+    let asset = Address::generate(&env);
+
+    // Before the fix, this created an escrow whose implicit admin was the
+    // depositor, allowing them to authorize their own release.
+    EscrowImpl::deposit(
+        env.clone(),
+        depositor,
+        Symbol::new(&env, "unconfigured"),
+        500i128,
+        asset,
+    );
+}
+
+#[test]
+#[should_panic(expected = "escrow_not_configured")]
+fn test_get_config_without_config_is_not_misleading() {
+    let (env, _) = setup();
+
+    EscrowImpl::get_config(env.clone(), Symbol::new(&env, "unconfigured"));
+}
+
+#[test]
 fn test_deposit_creates_record() {
     let (env, admin) = setup();
     EscrowImpl::set_config(env.clone(), admin.clone(), make_config(&env, &admin));
