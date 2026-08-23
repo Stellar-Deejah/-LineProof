@@ -97,11 +97,7 @@ export default function QueuesPage() {
                   key={queue.id}
                   to={`/queues/${queue.id}`}
                   aria-label={queue.name}
-                  className="rounded-2xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 p-5 shadow-sm transition hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md"
-                  style={{
-                    contentVisibility: 'auto',
-                    containIntrinsicSize: 'auto 200px',
-                  }}
+                  className="queue-card rounded-2xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 p-5 shadow-sm transition hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">{queue.name}</h2>
