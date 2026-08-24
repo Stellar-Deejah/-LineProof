@@ -4,8 +4,6 @@ use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol};
 const TTL_THRESHOLD: u32 = 10_000;
 /// TTL extension target: extend to this many ledgers (~1 year at 5s/ledger)
 const TTL_EXTEND_TO: u32 = 6_307_200;
-/// Additional TTL buffer for escrow records beyond hold_period_days (in ledgers)
-const ESCROW_TTL_BUFFER: u32 = 86_400; // ~5 days at 5s/ledger
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -39,7 +37,6 @@ pub struct EscrowConfig {
     pub admin: Address,
 }
 
-#[contract]
 pub trait Escrow {
     fn deposit(env: Env, caller: Address, queue_id: Symbol, amount: i128, asset: Address);
     fn release(env: Env, admin: Address, identity: Address, queue_id: Symbol);
@@ -51,6 +48,7 @@ pub trait Escrow {
     fn get_total_held(env: Env, queue_id: Symbol) -> i128;
 }
 
+#[contract]
 pub struct EscrowImpl;
 
 #[contractimpl]
@@ -66,13 +64,10 @@ impl Escrow for EscrowImpl {
         }
         let created_at = env.ledger().timestamp();
         let config_key = Self::config_key(&env, &queue_id);
-        let config: EscrowConfig = env.storage().persistent().get(&config_key).unwrap_or(EscrowConfig {
-            queue_id: queue_id.clone(),
-            min_deposit: 0,
-            max_deposit: i128::MAX,
-            hold_period_days: 30,
-            admin: caller.clone(),
-        });
+        let config: EscrowConfig = env.storage()
+            .persistent()
+            .get(&config_key)
+            .unwrap_or_else(|| panic!("escrow_not_configured"));
         if amount < config.min_deposit || amount > config.max_deposit {
             panic!("amount outside configured bounds");
         }
@@ -167,6 +162,12 @@ impl Escrow for EscrowImpl {
 
     fn set_config(env: Env, admin: Address, config: EscrowConfig) {
         admin.require_auth();
+        if config.min_deposit > config.max_deposit {
+            panic!("min_deposit_exceeds_max");
+        }
+        if config.hold_period_days == 0 {
+            panic!("hold_period_must_be_positive");
+        }
         let key = Self::config_key(&env, &config.queue_id);
         env.storage().persistent().set(&key, &config);
         env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
@@ -203,11 +204,10 @@ impl EscrowImpl {
 }
 
 fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _amount: i128) {
-    env.events().publish((
-        Symbol::new(env, "lineproof.escrow"),
-        kind,
-        queue_id,
-    ));
+    env.events().publish(
+        (Symbol::new(env, "lineproof_escrow"), kind, queue_id),
+        (),
+    );
 }
 
 #[cfg(test)]

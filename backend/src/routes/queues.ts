@@ -5,13 +5,22 @@ import { readQueueOnChain } from '../contracts/index.js';
 
 const router: IRouter = Router();
 
-const CreateQueueSchema = z.object({
-  name: z.string().min(1).max(120),
-  slug: z.string().min(1).max(120),
+const HTML_TAG_REGEX = /<[^>]*>/;
+const SLUG_REGEX = /^[a-zA-Z0-9-]+$/;
+
+export const CreateQueueSchema = z.object({
+  name: z.string().min(1).max(120).refine((val) => !HTML_TAG_REGEX.test(val), {
+    message: 'HTML tags not allowed in name',
+  }),
+  slug: z.string().min(1).max(9).regex(SLUG_REGEX, {
+    message: 'Slug must contain only alphanumeric characters and hyphens, up to 9 characters',
+  }),
   maxPositions: z.number().int().positive(),
   advancementRule: z.enum(['FIFO', 'Priority', 'VerifiableRandomness']).optional(),
   escrowRequired: z.boolean().optional(),
-  description: z.string().max(500).optional(),
+  description: z.string().max(500).optional().refine((val) => !val || !HTML_TAG_REGEX.test(val), {
+    message: 'HTML tags not allowed in description',
+  }),
 });
 
 const AdvanceSchema = z.object({
@@ -50,11 +59,18 @@ router.get('/:id/stats', (req, res: Response) => {
   res.json(stats);
 });
 
-router.post('/', (req, res: Response) => {
+router.post('/', (req, res: Response, next) => {
   const parsed = CreateQueueSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid request', issues: parsed.error.issues });
-  const queue = createQueue(parsed.data);
-  res.status(201).json(queue);
+  try {
+    const queue = createQueue(parsed.data);
+    res.status(201).json(queue);
+  } catch (err: any) {
+    if (err.status) {
+      return res.status(err.status).json({ message: err.message });
+    }
+    next(err);
+  }
 });
 
 router.post('/:id/advance', (req: any, res: Response, next) => {
