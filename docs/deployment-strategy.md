@@ -76,3 +76,70 @@ Production container deployments must adhere to the following security baselines
   - **Scope:** The final runtime image (not intermediate build stages), scanned directly from the local Docker daemon.
   - **Trade-off:** Setting the threshold to `critical` blocks deployment for any unpatched critical CVE in the final image. This is the strictest policy and may require occasional triage of false positives or accept-risk overrides. A more permissive "advisory-only" approach would log findings without blocking the pipeline; the current configuration chooses security gate over velocity. Teams may relax to `high` after evaluating their vulnerability management process.
   - **Artifacts:** Scan reports in SARIF format are uploaded as workflow artifacts for every run (including PRs).
+
+## Content Security Policy (CSP) Configuration
+
+The frontend production image (`frontend/nginx.conf`) ships a strict Content-Security-Policy:
+
+```
+default-src 'self';
+script-src 'self';
+style-src 'self' https://fonts.googleapis.com;
+font-src 'self' https://fonts.gstatic.com;
+img-src 'self' data:;
+connect-src 'self' ${API_ORIGIN} https://soroban-testnet.stellar.org https://horizon-testnet.stellar.org;
+frame-ancestors 'none';
+base-uri 'self';
+form-action 'self';
+report-uri /csp-report;
+report-to csp-endpoint;
+```
+
+### Why no `'unsafe-inline'` in `style-src`
+
+The codebase renders all styles through Tailwind CSS class utilities plus a small
+set of stylesheet classes (`global.css`). There are no inline `style="..."` attributes
+or `<style>` tags in the production bundle:
+
+- `ProgressBar` sets its fill width via the CSSOM (`element.style.width`) instead of
+  an inline style attribute.
+- `QueuesPage` card layout hints (`content-visibility`, `contain-intrinsic-size`) live
+  in the `.queue-card` stylesheet class.
+- The built `dist/index.html` contains no inline scripts, so `script-src 'self'`
+  needs no `sha256-*` hash allowlist.
+
+Before adding an inline style to the codebase, prefer a stylesheet class or CSSOM
+assignment; otherwise a `sha256-*` hash must be added to the CSP.
+
+### Configuring the API origin
+
+`connect-src` allows the backend API origin through the nginx `$api_origin`
+variable, which defaults to `http://localhost:4000`. For deployments where the API
+is served from a different origin (e.g. `https://api.lineproof.com`), override it at
+container startup:
+
+```bash
+# Edit the `set $api_origin "..."` line in the copied nginx.conf, or mount a
+# replacement config:
+docker run -v ./custom-nginx.conf:/etc/nginx/conf.d/default.conf:ro \
+  -p 8080:80 lineproof-frontend
+```
+
+`connect-src` additionally allows the Stellar Horizon and Soroban RPC endpoints the
+frontend speaks to at runtime; extend the list if additional integrations are added.
+
+### Violation reporting
+
+Violations are reported to the same-origin `/csp-report` endpoint via
+`report-uri`/`Reporting-Endpoints`. Point `report-uri` at your CSP collector if the
+backend does not serve that path, and confirm `report-to`/`Reporting-Endpoints` are
+consistent before enforcing a strict policy in production.
+
+### Rollout guidance
+
+1. Deploy with the CSP in `Report-Only` mode first
+   (`Content-Security-Policy-Report-Only`) and collect violations for a soak period.
+2. Fix or allowlist any legitimate violations.
+3. Switch to enforcement (`Content-Security-Policy`) once the report stream is clean.
+4. Keep the violation collector wired up after enforcement; a clean report stream
+   confirms the policy is not breaking the app.
