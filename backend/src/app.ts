@@ -20,19 +20,17 @@ import { register, METRICS_CONTENT_TYPE } from "./metrics/registry.js";
 import { healthPayload } from "./health.js";
 import { startWebhookDispatcher } from "./services/webhookDispatcher.js";
 import { checkContentLength } from "./middleware/contentLength.js";
-import { createCorsOptions } from "./middleware/corsConfig.js";
+import { corsOriginsFromEnvironment, createCorsOptions } from "./middleware/corsConfig.js";
 
-export function createApp(): Express {
+export function createApp(allowedOrigins?: string[]): Express {
   startWebhookDispatcher();
   const app: Express = express();
   app.set('json replacer', (_key: string, value: unknown) => typeof value === 'bigint' ? value.toString() : value);
 
-  const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
-    .split(",")
-    .map((o) => o.trim());
+  const resolvedOrigins = allowedOrigins ?? corsOriginsFromEnvironment();
 
   app.use(helmet());
-  app.use(cors(createCorsOptions(allowedOrigins)));
+  app.use(cors(createCorsOptions(resolvedOrigins)));
   app.use(requestId);
 
   // GET /metrics is mounted before logging and rate limiting so scrapes are never
