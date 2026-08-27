@@ -5,8 +5,17 @@ import { recordEnrollment } from '../metrics/registry.js';
 import { validateStellarAddress } from '../middleware/validateStellarAddress.js';
 import { StellarAddress } from '../schemas/stellar.js';
 import { ConflictError, NotFoundError, ValidationError } from '../errors/index.js';
+import { paginate, MAX_LIMIT } from '../utils/pagination.js';
 
 const router: IRouter = Router();
+
+/** Shared query schema for paginated enrollment list endpoints (issue #182). */
+const ListQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(MAX_LIMIT).optional(),
+    cursor: z.string().optional(),
+  })
+  .strict();
 
 const EnrollSchema = z.object({
   queueId: z.string().min(1),
@@ -50,9 +59,17 @@ router.post('/cancel', validateStellarAddress(['identity']), (req: Request<{}, {
   }
 });
 
-router.get('/queue/:queueId', (req: Request<{ queueId: string }>, res: Response): void => {
-  const records = getEnrollmentsByQueue(req.params.queueId);
-  res.json(records);
+router.get('/queue/:queueId', (req: Request<{ queueId: string }>, res: Response, next): void => {
+  try {
+    const queryResult = ListQuerySchema.safeParse(req.query);
+    if (!queryResult.success) throw new ValidationError('Invalid query parameters', { issues: queryResult.error.issues });
+
+    const { limit, cursor } = queryResult.data;
+    const records = getEnrollmentsByQueue(req.params.queueId);
+    res.json(paginate(records, { resolvedCursor: cursor, limit }));
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.get('/:identity', (req: Request<{ identity: string }>, res: Response, next): void => {
@@ -60,9 +77,14 @@ router.get('/:identity', (req: Request<{ identity: string }>, res: Response, nex
     const addressResult = StellarAddress.safeParse(req.params.identity);
     if (!addressResult.success) throw new ValidationError('Invalid Stellar address in path');
 
+    const queryResult = ListQuerySchema.safeParse(req.query);
+    if (!queryResult.success) throw new ValidationError('Invalid query parameters', { issues: queryResult.error.issues });
+
+    const { limit, cursor } = queryResult.data;
+
     const record = getEnrollmentsByIdentity(addressResult.data);
     if (!record || record.length === 0) throw new NotFoundError('No enrollments found');
-    res.json(record);
+    res.json(paginate(record, { resolvedCursor: cursor, limit }));
   } catch (err) {
     next(err);
   }
