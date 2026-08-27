@@ -128,7 +128,7 @@ pub(crate) fn get_wasmi_config(budget: &Budget) -> Result<wasmi::Config, HostErr
         .wasm_sign_extension(true)
         .wasm_saturating_float_to_int(false)
         .wasm_multi_value(false)
-        .wasm_reference_types(false)
+        .wasm_reference_types(true)
         .wasm_tail_call(false)
         .wasm_extended_const(false)
         .floats(false)

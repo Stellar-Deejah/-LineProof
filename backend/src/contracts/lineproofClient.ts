@@ -91,26 +91,34 @@ export const submitEnrollment = (
 };
 
 export const submitEscrowDeposit = (
-  amount: number,
+  caller: string,
+  queueId: string,
+  amount: bigint,
   asset: string,
 ): Promise<string> => {
   const sdk = requireWriter();
   return submit(() =>
-    sdk.escrow.deposit(sdk.contractIds.escrow!, amount, asset),
+    sdk.escrow.deposit(sdk.contractIds.escrow!, caller, queueId, amount, asset),
   );
 };
 
 export const submitQueueAdvance = (
   queueContractId: string,
+  admin: string,
   batchSize: number,
 ): Promise<number[]> => {
   const sdk = requireWriter();
-  return submit(() => sdk.queue(queueContractId).advance(batchSize));
+  return submit(() =>
+    sdk.queue(queueContractId).advance(admin, batchSize),
+  );
 };
 
-export const submitQueueClose = (queueContractId: string): Promise<string> => {
+export const submitQueueClose = (
+  queueContractId: string,
+  admin: string,
+): Promise<string> => {
   const sdk = requireWriter();
-  return submit(() => sdk.queue(queueContractId).close());
+  return submit(() => sdk.queue(queueContractId).close(admin));
 };
 
 export async function readEnrollmentOnChain(

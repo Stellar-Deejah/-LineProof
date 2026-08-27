@@ -129,7 +129,56 @@ Expected output includes `admin`, `min_version`, and `max_version` fields.
 
 ---
 
-## 7. Mainnet Checklist
+## 7. Deploy a Queue via the Factory (with salt)
+
+Queue contracts are created by invoking `deploy_queue` on the factory. The
+factory deploys a fresh `lineproof_queue` instance on your behalf using
+Soroban's deterministic address derivation:
+
+```
+queue address = address(factory) + wasm_hash(queue.wasm) + salt
+```
+
+Because the address depends on the **salt**, two calls that use the same
+factory and WASM but different salts produce **different** queue addresses.
+This makes every deployment front-running safe: a caller cannot observe your
+submission and force you onto the same address (the historical default-salt
+behaviour, see [#206]).
+
+```bash
+# Generate a random 32-byte salt (hex, 64 chars)
+SALT=$(openssl rand -hex 32)
+
+soroban contract invoke \
+  --id $FACTORY_CONTRACT_ID \
+  --source deployer \
+  --network testnet \
+  -- deploy_queue \
+  --deployer $(soroban keys address deployer) \
+  --slug sneaker-drop \
+  --name "Sneaker Drop" \
+  --version 1 \
+  --wasm_hash $QUEUE_WASM_HASH \
+  --salt $SALT
+```
+
+Notes:
+
+- `--wasm_hash` must be a **pre-installed** WASM hash. Upload it with
+  `soroban contract install` first if it is not already on-chain.
+- `--salt` accepts any 32-byte hex value. For repeatable/migratable queues you
+  may pin a fixed salt; for unique per-drop queues generate one randomly.
+- The returned value is the new queue's `Address`, recorded as the queue's
+  identifier by downstream tooling.
+- When driving the factory through the LineProof SDK, the
+  `QueueDeploymentParams.salt` field is optional — omitting it makes the SDK
+  generate a random salt automatically.
+
+[#206]: https://github.com/Stellar-Deejah/-LineProof/issues/206
+
+---
+
+## 8. Mainnet Checklist
 
 Before deploying to mainnet:
 
