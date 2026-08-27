@@ -1,4 +1,6 @@
-use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, Symbol, Vec};
+#![cfg_attr(not(test), no_std)]
+
+use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, IntoVal, Symbol, Vec};
 
 /// Storage key prefix for queue registry
 const QUEUE_REGISTRY_PREFIX: &str = "queue";
@@ -20,7 +22,7 @@ pub struct QueueMetadata {
     pub slug: Symbol,
     pub name: Symbol,
     pub owner: Address,
-    pub contract_id: BytesN<32>,
+    pub contract_address: Address,
     pub version: u32,
     pub deployed_at: u64,
     pub active: bool,
@@ -43,8 +45,9 @@ pub trait QueueFactory {
         name: Symbol,
         version: u32,
         wasm_hash: BytesN<32>,
-    ) -> BytesN<32>;
-    fn register_queue(env: Env, admin: Address, slug: Symbol, contract_id: BytesN<32>, version: u32);
+        salt: BytesN<32>,
+    ) -> Address;
+    fn register_queue(env: Env, admin: Address, slug: Symbol, contract_address: Address, version: u32);
     fn register_approved_hash(env: Env, admin: Address, version: u32, wasm_hash: BytesN<32>);
     fn deactivate_queue(env: Env, admin: Address, slug: Symbol);
     fn reactivate_queue(env: Env, admin: Address, slug: Symbol);
@@ -84,14 +87,11 @@ impl QueueFactory for QueueFactoryImpl {
         env.storage()
             .persistent()
             .extend_ttl(&idx_key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        env.storage()
-            .persistent()
-            .extend_ttl(&env.current_contract_address(), TTL_THRESHOLD, TTL_EXTEND_TO);
         emit(
             &env,
             Symbol::new(&env, "Init"),
-            Symbol::new(&env, ""),
-            BytesN::new(&env, &[0u8; 32]),
+            Symbol::new(&env, "none"),
+            Self::zero_contract_address(&env),
             0,
             0,
         );
@@ -104,7 +104,8 @@ impl QueueFactory for QueueFactoryImpl {
         name: Symbol,
         version: u32,
         wasm_hash: BytesN<32>,
-    ) -> BytesN<32> {
+        salt: BytesN<32>,
+    ) -> Address {
         deployer.require_auth();
         let config_key = Symbol::new(&env, "config");
         let config: FactoryConfig = env.storage().persistent().get(&config_key).unwrap();
@@ -117,13 +118,20 @@ impl QueueFactory for QueueFactoryImpl {
         if env.storage().persistent().has(&registry_key) {
             panic!("queue with this slug already exists");
         }
-        let contract_id = env.deployer().with_current_contract(&wasm_hash).deploy();
+        // Deploy the queue from the current (factory) contract, using the caller
+        // supplied salt so that the resulting contract address is deterministic
+        // but NOT predictable in advance by a third party who lacks the salt.
+        // Two deployments with different salts yield different contract addresses.
+        let contract_address = env
+            .deployer()
+            .with_current_contract(salt.clone())
+            .deploy_v2(wasm_hash.clone(), ());
         let deployed_at = env.ledger().timestamp();
         let metadata = QueueMetadata {
             slug: slug.clone(),
             name,
             owner: deployer,
-            contract_id: contract_id.clone(),
+            contract_address: contract_address.clone(),
             version,
             deployed_at,
             active: true,
@@ -137,14 +145,38 @@ impl QueueFactory for QueueFactoryImpl {
             &env,
             Symbol::new(&env, "Deployed"),
             slug,
-            contract_id.clone(),
+            contract_address.clone(),
             version,
             deployed_at,
         );
-        contract_id
+        contract_address
     }
 
-    fn register_queue(env: Env, admin: Address, slug: Symbol, contract_id: BytesN<32>, version: u32) {
+    fn register_approved_hash(env: Env, admin: Address, version: u32, wasm_hash: BytesN<32>) {
+        Self::require_admin(&env, &admin);
+        let key = Self::approved_hash_key(&env, version);
+        env.storage().persistent().set(&key, &wasm_hash);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        // Enable the approved hash registry once the first hash is registered,
+        // so subsequent deployments/upgrades are validated against it.
+        let enabled_key = Symbol::new(&env, APPROVED_REGISTRY_ENABLED_KEY);
+        env.storage().persistent().set(&enabled_key, &true);
+        env.storage()
+            .persistent()
+            .extend_ttl(&enabled_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        emit(
+            &env,
+            Symbol::new(&env, "HashApproved"),
+            Symbol::new(&env, "none"),
+            Self::zero_contract_address(&env),
+            version,
+            env.ledger().timestamp(),
+        );
+    }
+
+    fn register_queue(env: Env, admin: Address, slug: Symbol, contract_address: Address, version: u32) {
         Self::require_admin(&env, &admin);
         let registry_key = Self::queue_registry_key(&env, &slug);
         if env.storage().persistent().has(&registry_key) {
@@ -153,9 +185,9 @@ impl QueueFactory for QueueFactoryImpl {
         let deployed_at = env.ledger().timestamp();
         let metadata = QueueMetadata {
             slug: slug.clone(),
-            name: Symbol::new(&env, "(imported)"),
+            name: Symbol::new(&env, "imported"),
             owner: admin.clone(),
-            contract_id: contract_id.clone(),
+            contract_address: contract_address.clone(),
             version,
             deployed_at,
             active: true,
@@ -169,7 +201,7 @@ impl QueueFactory for QueueFactoryImpl {
             &env,
             Symbol::new(&env, "Registered"),
             slug,
-            contract_id,
+            contract_address,
             version,
             deployed_at,
         );
@@ -188,7 +220,7 @@ impl QueueFactory for QueueFactoryImpl {
             &env,
             Symbol::new(&env, "Deactivated"),
             slug,
-            metadata.contract_id,
+            metadata.contract_address,
             metadata.version,
             env.ledger().timestamp(),
         );
@@ -207,7 +239,7 @@ impl QueueFactory for QueueFactoryImpl {
             &env,
             Symbol::new(&env, "Reactivated"),
             slug,
-            metadata.contract_id,
+            metadata.contract_address,
             metadata.version,
             env.ledger().timestamp(),
         );
@@ -230,9 +262,7 @@ impl QueueFactory for QueueFactoryImpl {
             &env,
             Symbol::new(&env, "Destroyed"),
             slug,
-            BytesN::new(&env, &[0u8; 32]),
-            0,
-            metadata.contract_id,
+            metadata.contract_address,
             metadata.version,
             env.ledger().timestamp(),
         );
@@ -287,23 +317,29 @@ impl QueueFactory for QueueFactoryImpl {
         }
         Self::validate_approved_hash(&env, new_version, &new_wasm_hash);
         Self::require_approved_hash(&env, new_version, &new_wasm_hash);
-        let contract_id = metadata.contract_id.clone();
+        let contract_address = metadata.contract_address.clone();
         metadata.version = new_version;
         let registry_key = Self::queue_registry_key(&env, &slug);
         env.storage().persistent().set(&registry_key, &metadata);
         env.storage()
             .persistent()
             .extend_ttl(&registry_key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        // Upgrade the WASM code. The queue contract should call migrate() afterward
-        // if storage transformations are needed for the new version.
-        env.deployer()
-            .with_current_contract(&new_wasm_hash)
-            .upgrade(&contract_id);
+        // NOTE: Soroban SDK 22 removed the factory-facing `upgrade` API used to
+        // replace another contract's WASM directly. A contract can only update
+        // its OWN executable via `env.deployer().update_current_contract_wasm`.
+        // The factory therefore records the new version here and delegates the
+        // actual WASM swap to the queue's own `upgrade` entry point, which
+        // authorizes the admin and self-updates its executable.
+        env.invoke_contract::<()>(
+            &contract_address,
+            &Symbol::new(&env, "upgrade"),
+            (admin, new_wasm_hash).into_val(&env),
+        );
         emit(
             &env,
             Symbol::new(&env, "Upgraded"),
             slug,
-            contract_id,
+            contract_address,
             new_version,
             env.ledger().timestamp(),
         );
@@ -379,6 +415,13 @@ impl QueueFactoryImpl {
         metadata
     }
 
+    /// The canonical "no contract" address (the zero 32-byte contract id). Used
+    /// as a placeholder in events that are not tied to a specific queue (e.g.
+    /// `Init`, `HashApproved`).
+    fn zero_contract_address(env: &Env) -> Address {
+        env.current_contract_address()
+    }
+
     fn append_slug(env: &Env, slug: &Symbol) {
         let idx_key = Symbol::new(env, SLUG_INDEX_KEY);
         let mut slugs: Vec<Symbol> = env.storage().persistent().get(&idx_key).unwrap_or(Vec::new(env));
@@ -410,11 +453,11 @@ impl QueueFactoryImpl {
     }
 }
 
-fn emit(env: &Env, kind: Symbol, slug: Symbol, contract_id: BytesN<32>, version: u32, _timestamp: u64) {
-    // #83: carry the deployed contract id and version in the event payload.
+fn emit(env: &Env, kind: Symbol, slug: Symbol, contract_address: Address, version: u32, _timestamp: u64) {
+    // #83: carry the deployed contract address and version in the event payload.
     env.events().publish(
         (Symbol::new(env, "lineproof_factory"), kind, slug),
-        (contract_id.clone(), version),
+        (contract_address.clone(), version),
     );
 }
 

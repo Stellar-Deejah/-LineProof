@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), no_std)]
+
 use soroban_sdk::{contract, contractimpl, contracttype, xdr::ToXdr, Address, BytesN, Env, Symbol, Vec};
 
 /// TTL threshold: renew if remaining TTL is below this many ledgers (~13.8 hours at 5s/ledger)

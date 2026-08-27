@@ -1,3 +1,4 @@
+{
 "scripts": {
   "start": "tsx src/index.ts",
   "typecheck": "tsc --noEmit",
@@ -11,4 +12,5 @@
   "eslint": "^8.57.0",
   "tsx": "^4.7.0",
   "typescript": "^5.5.0"
+}
 }

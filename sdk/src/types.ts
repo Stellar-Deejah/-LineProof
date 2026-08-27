@@ -67,6 +67,12 @@ export interface QueueDeploymentParams {
   escrowAsset?: string;
   escrowAmountReadable?: number;
   wasmHash?: string;
+  /**
+   * Optional 32-byte deployment salt (hex-encoded string of length 64).
+   * When omitted, a random salt is generated client-side so every deployment
+   * produces a deterministic-but-unique contract address (front-running safe).
+   */
+  salt?: string;
 }
 
 export enum AdvancementRule {
