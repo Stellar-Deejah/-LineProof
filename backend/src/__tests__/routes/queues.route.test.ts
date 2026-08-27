@@ -25,9 +25,10 @@ describe('Queues Routes', () => {
 
       const res = await request(app).get('/api/queues?limit=1');
       expect(res.status).toBe(200);
+      // nextCursor = encodeCursor(0, 1) = base64("0:1") = "MDox"
       expect(res.body).toEqual({
         items: [{ id: 'q1', slug: 'q1', status: 'Draft' }],
-        nextCursor: Buffer.from('q1').toString('base64'),
+        nextCursor: Buffer.from('0:1').toString('base64'),
         total: 2,
       });
       expect(queueService.listQueues).toHaveBeenCalled();
@@ -40,7 +41,8 @@ describe('Queues Routes', () => {
       ];
       vi.mocked(queueService.listQueues).mockReturnValue(mockList as any);
 
-      const cursor = Buffer.from('q1').toString('base64');
+      // encodeCursor(0, 1) advances to index 1
+      const cursor = Buffer.from('0:1').toString('base64');
       const res = await request(app).get(`/api/queues?limit=1&cursor=${cursor}`);
       expect(res.status).toBe(200);
       expect(res.body).toEqual({
@@ -54,10 +56,11 @@ describe('Queues Routes', () => {
       const mockList = [{ id: 'q1', slug: 'q1', status: 'Draft' }];
       vi.mocked(queueService.listQueues).mockReturnValue(mockList as any);
 
+      // base64("non-existent") decodes to "non-existent" which has no ":" separator → NaN → invalid
       const invalidCursor = Buffer.from('non-existent').toString('base64');
       const res = await request(app).get(`/api/queues?cursor=${invalidCursor}`);
       expect(res.status).toBe(400);
-      expect(res.body.message).toContain('Invalid cursor');
+      expect(res.body.error.message).toContain('Invalid cursor');
     });
 
     it('returns 400 for invalid limit', async () => {

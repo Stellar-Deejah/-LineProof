@@ -6,34 +6,44 @@ Base path: `/api/queues`
 
 ## GET /api/queues
 
-Returns all registered queues. Accepts optional `?status=` filter.
+Returns registered queues, paginated. Accepts optional `?status=` filter.
 
 **Query parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
-| `status` | string | Filter by queue status: `Draft`, `Open`, `AdvancementActive`, `Closed` |
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `status` | string | — | Filter by queue status: `Draft`, `EnrollmentOpen`, `EnrollmentClosed`, `AdvancementActive`, `Closed` |
+| `limit` | integer | 50 | Items per page. Min 1, max 200. Returns 400 if out of range. |
+| `cursor` | string | — | Opaque cursor from a previous response's `nextCursor`. |
 
 **Response 200**
 
 ```json
-[
-  {
-    "id": "sneaker-drop-001",
-    "name": "Sneaker Drop #001",
-    "slug": "sneaker-drop-001",
-    "description": "...",
-    "maxPositions": 250,
-    "enrolled": 187,
-    "advanced": 0,
-    "status": "Open",
-    "advancementRule": "FIFO",
-    "escrowAsset": "USDC",
-    "escrowAmount": 150,
-    "createdAt": "2025-06-28T10:00:00.000Z"
-  }
-]
+{
+  "items": [
+    {
+      "id": "sneaker-drop-001",
+      "name": "Sneaker Drop #001",
+      "slug": "sneaker-drop-001",
+      "description": "...",
+      "maxPositions": 250,
+      "enrolled": 187,
+      "advanced": 0,
+      "status": "EnrollmentOpen",
+      "advancementRule": "FIFO",
+      "escrowAsset": "USDC",
+      "escrowAmount": 150,
+      "createdAt": "2025-06-28T10:00:00.000Z"
+    }
+  ],
+  "nextCursor": "MDox",
+  "total": 312
+}
 ```
+
+`nextCursor` is `null` when there are no more pages. Pass it as `?cursor=` on the next request to continue. Omitting `limit` and `cursor` returns the first 50 items (backward-compatible default).
+
+**Response 400** — invalid `limit`, `cursor`, or `status` value
 
 ---
 

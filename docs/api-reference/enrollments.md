@@ -61,28 +61,52 @@ Cancels an active enrollment.
 
 ## GET /api/enrollments/:identity
 
-Returns all enrollments for a given identity address.
+Returns enrollments for a given identity address, paginated.
+
+**Query parameters**
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `limit` | integer | 50 | Items per page. Min 1, max 200. Returns 400 if out of range. |
+| `cursor` | string | — | Opaque cursor from a previous response's `nextCursor`. |
 
 **Response 200**
 
 ```json
-[
-  {
-    "queueId": "sneaker-drop-001",
-    "identity": "GABC...XYZ",
-    "enrolledAt": "2025-07-01T10:00:00.000Z",
-    "conflict": false,
-    "cancelled": false
-  }
-]
+{
+  "items": [
+    {
+      "queueId": "sneaker-drop-001",
+      "identity": "GABC...XYZ",
+      "enrolledAt": "2025-07-01T10:00:00.000Z",
+      "conflict": false,
+      "cancelled": false
+    }
+  ],
+  "nextCursor": "MDox",
+  "total": 42
+}
 ```
 
-**Response 404** — no enrollments found
+`nextCursor` is `null` when there are no more pages. Pass it as `?cursor=` on the next request to continue.
+
+**Response 400** — invalid `limit` or `cursor`
+
+**Response 404** — no enrollments found for the given identity
 
 ---
 
 ## GET /api/enrollments/queue/:queueId
 
-Returns all active (non-cancelled) enrollments for a queue.
+Returns active (non-cancelled) enrollments for a queue, paginated.
 
-**Response 200** — array of enrollment records (same shape as above)
+**Query parameters**
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `limit` | integer | 50 | Items per page. Min 1, max 200. Returns 400 if out of range. |
+| `cursor` | string | — | Opaque cursor from a previous response's `nextCursor`. |
+
+**Response 200** — paginated envelope (same shape as `GET /api/enrollments/:identity`)
+
+**Response 400** — invalid `limit` or `cursor`
