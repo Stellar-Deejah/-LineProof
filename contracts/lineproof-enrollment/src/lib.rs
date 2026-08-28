@@ -158,17 +158,8 @@ impl Enrollment for EnrollmentImpl {
         env.storage()
             .persistent()
             .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        env.storage()
-            .persistent()
-            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
 
-        // Increment enrollment count
-        let count_key = Self::count_key(&env, &queue_id);
-        let count: u32 = env.storage().persistent().get(&count_key).unwrap_or(0);
-        env.storage().persistent().set(&count_key, &(count + 1));
-        env.storage()
-            .persistent()
-            .extend_ttl(&count_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        Self::increment_count(&env, &queue_id);
 
         emit(
             &env,
@@ -197,15 +188,7 @@ impl Enrollment for EnrollmentImpl {
             .unwrap_or_else(|| panic!("not enrolled"));
         env.storage().persistent().remove(&key);
 
-        // Decrement enrollment count
-        let count_key = Self::count_key(&env, &queue_id);
-        let count: u32 = env.storage().persistent().get(&count_key).unwrap_or(0);
-        if count > 0 {
-            env.storage().persistent().set(&count_key, &(count - 1));
-            env.storage()
-                .persistent()
-                .extend_ttl(&count_key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        }
+        Self::decrement_count(&env, &queue_id);
 
         emit(
             &env,
@@ -308,6 +291,9 @@ impl Enrollment for EnrollmentImpl {
         for _ in 0..to_promote {
             let identity = waitlist.get(0).unwrap();
             waitlist.remove(0);
+            // Only count identities without a live record: waitlisted identities
+            // normally already hold an active enrollment, which promotion overwrites.
+            let newly_enrolled = !Self::is_enrolled_internal(&env, &identity, &queue_id);
             let enrolled_at = env.ledger().timestamp();
             let hash = Self::compute_proof_hash(&env, &identity, &queue_id, enrolled_at);
             let record = EnrollmentRecord {
@@ -325,13 +311,9 @@ impl Enrollment for EnrollmentImpl {
                 .persistent()
                 .extend_ttl(&record_key, TTL_THRESHOLD, TTL_EXTEND_TO);
 
-            // Increment enrollment count
-            let count_key = Self::count_key(&env, &queue_id);
-            let count_val: u32 = env.storage().persistent().get(&count_key).unwrap_or(0);
-            env.storage().persistent().set(&count_key, &(count_val + 1));
-            env.storage()
-                .persistent()
-                .extend_ttl(&count_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+            if newly_enrolled {
+                Self::increment_count(&env, &queue_id);
+            }
 
             emit(
                 &env,
@@ -375,6 +357,27 @@ impl EnrollmentImpl {
 
     fn count_key(env: &Env, queue_id: &Symbol) -> (Symbol, Symbol) {
         (Symbol::new(env, "enroll_cnt"), queue_id.clone())
+    }
+
+    /// Increments the per-queue enrollment counter, saturating at u32::MAX.
+    fn increment_count(env: &Env, queue_id: &Symbol) {
+        let count_key = Self::count_key(env, queue_id);
+        let count: u32 = env.storage().persistent().get(&count_key).unwrap_or(0);
+        env.storage().persistent().set(&count_key, &count.saturating_add(1));
+        env.storage()
+            .persistent()
+            .extend_ttl(&count_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+    }
+
+    /// Decrements the per-queue enrollment counter, saturating at zero so the
+    /// count can never underflow even if state drifts.
+    fn decrement_count(env: &Env, queue_id: &Symbol) {
+        let count_key = Self::count_key(env, queue_id);
+        let count: u32 = env.storage().persistent().get(&count_key).unwrap_or(0);
+        env.storage().persistent().set(&count_key, &count.saturating_sub(1));
+        env.storage()
+            .persistent()
+            .extend_ttl(&count_key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     fn waitlist_key(env: &Env, queue_id: &Symbol) -> (Symbol, Symbol) {
