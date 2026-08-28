@@ -262,6 +262,9 @@ impl QueueImpl {
     }
 
     pub fn advance(env: Env, admin: Address, batch_size: u32) -> Vec<u32> {
+        if batch_size == 0 {
+            panic!("batch_size_must_be_positive");
+        }
         let mut config = Self::get_config_internal(&env);
         Self::require_admin(&config, &admin);
         if matches!(config.status, QueueStatus::Closed) {
