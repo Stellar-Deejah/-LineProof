@@ -44,13 +44,6 @@ fn test_is_enrolled_returns_correct_state() {
     let contract_id = env.register(EnrollmentImpl, ());
     let client = EnrollmentImplClient::new(&env, &contract_id);
     let queue_id = Symbol::new(&env, "visa");
-    assert!(!EnrollmentImpl::is_enrolled(
-        env.clone(),
-        caller.clone(),
-        queue_id.clone()
-    ));
-    EnrollmentImpl::enroll(env.clone(), caller.clone(), queue_id.clone());
-    assert!(EnrollmentImpl::is_enrolled(env, caller, queue_id));
     assert!(!client.is_enrolled(&caller, &queue_id));
     client.enroll(&caller, &queue_id, &None);
     assert!(client.is_enrolled(&caller, &queue_id));
@@ -102,11 +95,6 @@ fn test_set_duplicate_behavior() {
 #[test]
 fn test_finalize_enrollment() {
     let (env, admin) = setup();
-    let user = Address::generate(&env);
-    let queue_id = Symbol::new(&env, "fin-q");
-    EnrollmentImpl::enroll(env.clone(), user.clone(), queue_id.clone());
-    EnrollmentImpl::finalize_enrollment(env.clone(), admin.clone(), user.clone(), queue_id.clone());
-    let record = EnrollmentImpl::enrollment_record(env, user, queue_id).unwrap();
     let contract_id = env.register(EnrollmentImpl, ());
     let client = EnrollmentImplClient::new(&env, &contract_id);
     let user = Address::generate(&env);
@@ -143,11 +131,6 @@ fn test_enrollment_record_returns_none_when_missing() {
 #[test]
 fn test_proof_hash_is_distinct_for_different_inputs() {
     let (env, _) = setup();
-    let u1 = Address::generate(&env);
-    let u2 = Address::generate(&env);
-    let queue_id = Symbol::new(&env, "q-hash");
-    let proof1 = EnrollmentImpl::enroll(env.clone(), u1.clone(), queue_id.clone());
-    let proof2 = EnrollmentImpl::enroll(env.clone(), u2.clone(), queue_id.clone());
     let contract_id = env.register(EnrollmentImpl, ());
     let client = EnrollmentImplClient::new(&env, &contract_id);
     let u1 = Address::generate(&env);
@@ -173,10 +156,6 @@ fn test_cancel_emits_original_hash() {
 
     let topics = cancel_event.1;
     // topic[0] is lineproof_enrollment, topic[1] is Cancelled, topic[2] is queue_id
-    assert_eq!(
-        topics.get(1).unwrap(),
-        soroban_sdk::IntoVal::into_val(&Symbol::new(&env, "Cancelled"), &env)
-    );
     assert_eq!(
         Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(),
         Symbol::new(&env, "Cancelled")
@@ -357,4 +336,116 @@ fn test_override_expired_rejection() {
 
     // Enroll again (should fail because not expired)
     client.enroll(&caller, &queue_id, &Some(200));
+}
+
+// --- enrollment_count accounting (issue #10) ---
+
+#[test]
+fn test_enrollment_count_starts_at_zero() {
+    let (env, _) = setup();
+    let contract_id = env.register(EnrollmentImpl, ());
+    let client = EnrollmentImplClient::new(&env, &contract_id);
+    assert_eq!(client.enrollment_count(&Symbol::new(&env, "untouched")), 0);
+}
+
+#[test]
+fn test_enrollment_count_increments_per_enroll() {
+    let (env, _) = setup();
+    let contract_id = env.register(EnrollmentImpl, ());
+    let client = EnrollmentImplClient::new(&env, &contract_id);
+    let queue_id = Symbol::new(&env, "count_q");
+    let u1 = Address::generate(&env);
+    let u2 = Address::generate(&env);
+    let u3 = Address::generate(&env);
+
+    client.enroll(&u1, &queue_id, &None);
+    assert_eq!(client.enrollment_count(&queue_id), 1);
+    client.enroll(&u2, &queue_id, &None);
+    assert_eq!(client.enrollment_count(&queue_id), 2);
+    client.enroll(&u3, &queue_id, &None);
+    assert_eq!(client.enrollment_count(&queue_id), 3);
+
+    // Other queues are unaffected
+    assert_eq!(client.enrollment_count(&Symbol::new(&env, "other_q")), 0);
+}
+
+#[test]
+fn test_enrollment_count_decrements_on_cancel() {
+    let (env, _) = setup();
+    let contract_id = env.register(EnrollmentImpl, ());
+    let client = EnrollmentImplClient::new(&env, &contract_id);
+    let queue_id = Symbol::new(&env, "cancel_q");
+    let u1 = Address::generate(&env);
+    let u2 = Address::generate(&env);
+
+    client.enroll(&u1, &queue_id, &None);
+    client.enroll(&u2, &queue_id, &None);
+    assert_eq!(client.enrollment_count(&queue_id), 2);
+
+    client.cancel(&u1, &queue_id);
+    assert_eq!(client.enrollment_count(&queue_id), 1);
+    client.cancel(&u2, &queue_id);
+    assert_eq!(client.enrollment_count(&queue_id), 0);
+}
+
+#[test]
+fn test_enrollment_count_never_underflows() {
+    let (env, caller) = setup();
+    let contract_id = env.register(EnrollmentImpl, ());
+    let client = EnrollmentImplClient::new(&env, &contract_id);
+    let queue_id = Symbol::new(&env, "underflow_q");
+
+    client.enroll(&caller, &queue_id, &None);
+
+    // Simulate drifted state: force the counter to zero while a record still
+    // exists, then cancel. Saturating subtraction must keep the count at 0
+    // instead of wrapping to u32::MAX.
+    env.as_contract(&contract_id, || {
+        let count_key = EnrollmentImpl::count_key(&env, &queue_id);
+        env.storage().persistent().set(&count_key, &0u32);
+    });
+    client.cancel(&caller, &queue_id);
+    assert_eq!(client.enrollment_count(&queue_id), 0);
+}
+
+#[test]
+fn test_enrollment_count_ignores_waitlist_and_survives_promotion() {
+    let (env, u1) = setup();
+    let contract_id = env.register(EnrollmentImpl, ());
+    let client = EnrollmentImplClient::new(&env, &contract_id);
+    let queue_id = Symbol::new(&env, "wl_count_q");
+    let u2 = Address::generate(&env);
+    let admin = Address::generate(&env);
+
+    client.enroll(&u1, &queue_id, &None);
+    client.enroll(&u2, &queue_id, &None);
+    assert_eq!(client.enrollment_count(&queue_id), 2);
+
+    // Waitlist additions must not inflate the active enrollment count
+    client.set_duplicate_behavior(&admin, &DuplicateBehavior::GrantWaitingList);
+    client.enroll(&u1, &queue_id, &None); // waitlisted
+    assert_eq!(client.enrollment_count(&queue_id), 2);
+
+    // Promoting an identity that already has a live record must not double-count
+    client.promote_from_waitlist(&admin, &queue_id, &1);
+    assert_eq!(client.enrollment_count(&queue_id), 2);
+}
+
+#[test]
+fn test_enrollment_count_unchanged_by_override_expired() {
+    let (env, caller) = setup();
+    let contract_id = env.register(EnrollmentImpl, ());
+    let client = EnrollmentImplClient::new(&env, &contract_id);
+    let queue_id = Symbol::new(&env, "override_cnt_q");
+    let admin = Address::generate(&env);
+
+    client.enroll(&caller, &queue_id, &Some(100));
+    assert_eq!(client.enrollment_count(&queue_id), 1);
+
+    client.set_duplicate_behavior(&admin, &DuplicateBehavior::OverrideExpired);
+    env.ledger().set_timestamp(105);
+
+    // Overriding an expired record replaces it; the live-record count stays 1
+    client.enroll(&caller, &queue_id, &Some(200));
+    assert_eq!(client.enrollment_count(&queue_id), 1);
 }

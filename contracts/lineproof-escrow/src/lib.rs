@@ -92,12 +92,7 @@ impl Escrow for EscrowImpl {
             .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
 
         // Update running total for the queue
-        let total_key = Self::total_key(&env, &queue_id);
-        let current: i128 = env.storage().persistent().get(&total_key).unwrap_or(0);
-        env.storage().persistent().set(&total_key, &(current + amount));
-        env.storage()
-            .persistent()
-            .extend_ttl(&total_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        Self::add_held(&env, &queue_id, amount);
 
         emit(&env, Symbol::new(&env, "Deposited"), queue_id, &caller, amount);
     }
@@ -115,6 +110,7 @@ impl Escrow for EscrowImpl {
         env.storage()
             .persistent()
             .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        Self::subtract_held(&env, &queue_id, record.amount);
         emit(&env, Symbol::new(&env, "Released"), queue_id, &identity, record.amount);
     }
 
@@ -131,6 +127,7 @@ impl Escrow for EscrowImpl {
         env.storage()
             .persistent()
             .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        Self::subtract_held(&env, &queue_id, record.amount);
         emit(&env, Symbol::new(&env, "Refunded"), queue_id, &identity, record.amount);
     }
 
@@ -149,6 +146,7 @@ impl Escrow for EscrowImpl {
         env.storage()
             .persistent()
             .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        Self::subtract_held(&env, &queue_id, record.amount);
         emit(&env, Symbol::new(&env, "Expired"), queue_id, &identity, record.amount);
     }
 
@@ -211,6 +209,30 @@ impl EscrowImpl {
 
     fn total_key(env: &Env, queue_id: &Symbol) -> (Symbol, Symbol) {
         (Symbol::new(env, "escrow_total"), queue_id.clone())
+    }
+
+    /// Adds `amount` to the queue's running held total.
+    fn add_held(env: &Env, queue_id: &Symbol, amount: i128) {
+        let total_key = Self::total_key(env, queue_id);
+        let current: i128 = env.storage().persistent().get(&total_key).unwrap_or(0);
+        env.storage()
+            .persistent()
+            .set(&total_key, &current.saturating_add(amount));
+        env.storage()
+            .persistent()
+            .extend_ttl(&total_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+    }
+
+    /// Subtracts `amount` from the queue's running held total, clamping at zero so
+    /// the reported total can never go negative even if state drifts.
+    fn subtract_held(env: &Env, queue_id: &Symbol, amount: i128) {
+        let total_key = Self::total_key(env, queue_id);
+        let current: i128 = env.storage().persistent().get(&total_key).unwrap_or(0);
+        let updated = current.saturating_sub(amount).max(0);
+        env.storage().persistent().set(&total_key, &updated);
+        env.storage()
+            .persistent()
+            .extend_ttl(&total_key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 }
 
