@@ -1,0 +1,22 @@
+# LineProof CODEOWNERS
+# Each line is a file pattern followed by one or more owners.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Contracts - require Stellar/Soroban expert review
+contracts/** @Stellar-Deejah
+
+# SDK - require SDK maintainer review
+sdk/** @Stellar-Deejah
+
+# Backend services and routes
+backend/src/services/** @Stellar-Deejah
+backend/src/routes/** @Stellar-Deejah
+
+# Security-sensitive configurations
+docker/** @Stellar-Deejah
+.github/workflows/** @Stellar-Deejah
+*.yml @Stellar-Deejah
+*.yaml @Stellar-Deejah
+
+# Frontend
+frontend/** @Stellar-Deejah

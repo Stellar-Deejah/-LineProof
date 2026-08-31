@@ -117,7 +117,7 @@ impl QueueFactory for QueueFactoryImpl {
         let contract_id = env
             .deployer()
             .with_current_contract(wasm_hash.clone())
-            .deploy(wasm_hash.clone());
+            .deploy_v2(wasm_hash.clone(), ());
         let deployed_at = env.ledger().timestamp();
         let metadata = QueueMetadata {
             slug: slug.clone(),

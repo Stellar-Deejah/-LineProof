@@ -55,6 +55,31 @@ For a fuller walkthrough, see [docs/developer-onboarding.md](docs/developer-onbo
 - Explain any checks you could not run.
 - Do not include generated build output unless the repo explicitly tracks it.
 
+## Branch Protection Rules
+
+The following rules are enforced on the `main` branch:
+
+- **Required status checks**: All CI workflows must pass before merge (cargo-audit, pnpm-audit, dependency-review, secret-scan).
+- **Required reviewers**: PRs touching critical paths (`contracts/`, `sdk/`, `backend/src/services/`, `docker/`, `.github/workflows/`) require review from code owners defined in `.github/CODEOWNERS`.
+- **No force-push**: Force-pushing to `main` is prohibited.
+- **No direct merges**: All changes must go through pull requests.
+
+### CODEOWNERS
+
+The `.github/CODEOWNERS` file automatically assigns reviewers based on file paths:
+
+- `contracts/**`: @Stellar-Deejah
+- `sdk/**`: @Stellar-Deejah
+- `backend/src/services/**`: @Stellar-Deejah
+- `backend/src/routes/**`: @Stellar-Deejah
+- `docker/**`: @Stellar-Deejah
+- `.github/workflows/**`: @Stellar-Deejah
+- `frontend/**`: @Stellar-Deejah
+
+### Secret Scanning
+
+TruffleHog runs on every push to `main` and on all PRs to detect accidentally committed secrets (API keys, private keys, Stellar secret keys, etc.). The scanner is configured to fail on high-confidence findings.
+
 ## Commit Style
 
 Use conventional prefixes when practical:
