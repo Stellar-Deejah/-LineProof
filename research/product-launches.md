@@ -60,14 +60,25 @@ Limited-edition product launches include:
 - Brand verification of queue contract
 - Anti-counterfeit benefits
 
-## Implementation Patterns
+---
 
-### Sneaker Drop
-- One reservation per identity
-- Size preference as metadata
-- Payment hold until pickup/shipping
+## Concrete Technical Requirements
 
-### GPU Launch
-- Model selection during enrollment
-- Escrow release on delivery
-- Priority for verified gamers/creators
+### 1. Multi-Variant SKU Sub-Queue Hierarchy
+- Product drops with variant options (e.g. shoe sizes, GPU models) deploy dedicated sub-queues (e.g. `gpu-drop-rtx5090`) registered under a single master factory contract (`lineproof-queue-factory`).
+- Maximum capacity (`max_positions`) per sub-queue strictly enforces physical stock allocation.
+
+### 2. Sybil-Resistant Identity & WebAuthn Hardware Binding
+- Participants bind hardware security keys (FIDO2 / WebAuthn) or verified proof-of-personhood credentials to their Stellar address (`lineproof-identity::bind`).
+- Duplicate enrollment rules (`DuplicateBehavior::Reject`) reject secondary reservations from the same entity.
+
+### 3. Automated Escrow Deposit & Stockout Refunds
+- Participants lock checkout funds or deposit stakes via `lineproof-escrow::deposit`.
+- In the event of inventory exhaustion before a position is reached, `lineproof-escrow::refund` automatically returns 100% of deposited funds without merchant intervention.
+
+### 4. E-Commerce Checkout Fulfillment Webhooks
+- Upon batch advancement (`lineproof-queue::advance`), backend dispatches HMAC-SHA256 signed webhooks to merchant platforms (Shopify, WooCommerce, custom cart).
+- Webhooks generate single-use 15-minute checkout reservation tokens tied to `EnrollmentProof.proof_hash`.
+
+### 5. Non-Transferable Reservation Rights
+- Reservations cannot be transferred or sold to third-party accounts (`lineproof-identity::can_transfer == false`), neutralizing secondary scalping bots and ensuring true fans receive products at face value.

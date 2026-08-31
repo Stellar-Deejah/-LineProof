@@ -17,7 +17,7 @@ describe('useEscrow hook', () => {
       id: 'e1',
       queueId: '1',
       identity: 'user1',
-      amount: 100,
+      amount: '1000000000',
       asset: 'USDC',
       status: 'Active',
       createdAt: '2023-01-01T00:00:00Z',
@@ -32,7 +32,7 @@ describe('useEscrow hook', () => {
 
     let success;
     await act(async () => {
-      success = await result.current.deposit({ queueId: '1', identity: 'user1', amount: 100, asset: 'USDC' });
+      success = await result.current.deposit({ queueId: '1', identity: 'user1', amount: '100', asset: 'USDC' });
     });
 
     expect(success).toBe(true);
@@ -52,7 +52,7 @@ describe('useEscrow hook', () => {
 
     let success;
     await act(async () => {
-      success = await result.current.deposit({ queueId: '1', identity: 'user1', amount: 100, asset: 'USDC' });
+      success = await result.current.deposit({ queueId: '1', identity: 'user1', amount: '100', asset: 'USDC' });
     });
 
     expect(success).toBe(false);

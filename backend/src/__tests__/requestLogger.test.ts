@@ -12,10 +12,11 @@ function makeReq(overrides: Partial<Request> = {}): Request {
   } as unknown as Request;
 }
 
-function makeRes(statusCode = 200) {
+function makeRes(statusCode = 200, requestId = 'test-request-id') {
   const listeners: Record<string, Array<() => void>> = {};
   return {
     statusCode,
+    locals: { requestId },
     on: (event: string, cb: () => void) => {
       if (!listeners[event]) listeners[event] = [];
       listeners[event].push(cb);
@@ -57,10 +58,12 @@ describe('requestLogger', () => {
       level: string;
       status: number;
       method: string;
+      requestId: string;
     };
     expect(logged.level).toBe('INFO');
     expect(logged.status).toBe(200);
     expect(logged.method).toBe('GET');
+    expect(logged.requestId).toBe('test-request-id');
   });
 
   it('logs WARN for 4xx on finish', () => {
@@ -79,5 +82,14 @@ describe('requestLogger', () => {
     res.emit('finish');
     const logged = JSON.parse(String(logSpy.mock.calls[0][0])) as { level: string };
     expect(logged.level).toBe('ERROR');
+  });
+
+  it('logs the requestId set by the requestId middleware, so it can correlate with errorHandler on a failing request', () => {
+    const next = vi.fn() as unknown as NextFunction;
+    const res = makeRes(500, 'req-abc-123');
+    requestLogger(makeReq(), res, next);
+    res.emit('finish');
+    const logged = JSON.parse(String(logSpy.mock.calls[0][0])) as { requestId: string };
+    expect(logged.requestId).toBe('req-abc-123');
   });
 });

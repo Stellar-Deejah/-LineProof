@@ -53,19 +53,24 @@ export function decodeCursor(cursor: string): { ledger: number; index: number } 
 
 /**
  * Wraps an array of items into a Page with an optional next cursor.
+ * `getCursor` also receives the item's index within `items` so callers whose
+ * items don't carry their own per-ledger index (e.g. deserialized events) can
+ * use their position in the batch instead.
  */
 export function paginate<T>(
   items: T[],
   options: PageOptions,
-  getCursor: (item: T) => { ledger: number; index: number },
+  getCursor: (item: T, index: number) => { ledger: number; index: number },
 ): Page<T> {
   const limit = Math.min(options.limit ?? 50, 200);
   const sliced = items.slice(0, limit);
   const hasMore = items.length > limit;
-  const lastItem = sliced[sliced.length - 1];
+  const lastIndex = sliced.length - 1;
+  const lastItem = sliced[lastIndex];
   const page: Page<T> = { items: sliced, count: sliced.length };
   if (hasMore && lastItem) {
-    page.nextCursor = encodeCursor(getCursor(lastItem).ledger, getCursor(lastItem).index + 1);
+    const cursor = getCursor(lastItem, lastIndex);
+    page.nextCursor = encodeCursor(cursor.ledger, cursor.index + 1);
   }
   return page;
 }

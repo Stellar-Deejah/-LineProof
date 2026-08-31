@@ -18,10 +18,10 @@ help: ## Show all available targets
 install: ## Install all workspace dependencies
 	pnpm install
 
-install-toolchain: ## Install Rust toolchain, wasm32 target, and soroban-cli
+install-toolchain: ## Install Rust toolchain, wasm32 target, and stellar-cli
 	rustup toolchain install stable
 	rustup target add wasm32-unknown-unknown
-	cargo install --locked soroban-cli || true
+	cargo install --locked stellar-cli --features opt
 
 build-contracts: ## Build Soroban contracts to WASM
 	cd $(CONTRACTS) && cargo build --target wasm32-unknown-unknown --release

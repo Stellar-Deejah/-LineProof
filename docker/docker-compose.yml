@@ -36,21 +36,8 @@ services:
       timeout: 5s
       retries: 10
 
-  postgres:
-    image: postgres:16-alpine
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: lineproof
-      POSTGRES_PASSWORD: lineproof
-      POSTGRES_DB: lineproof
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lineproof"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+  # Note: postgres service removed until issue #9 (database persistence layer) is implemented.
+  # The local stack backend currently runs using in-memory state.
 
   backend:
     build:
@@ -61,17 +48,11 @@ services:
     depends_on:
       soroban-rpc:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
     environment:
       NODE_ENV: development
       PORT: 4000
       SOROBAN_RPC_URL: http://soroban-rpc:8080
       STELLAR_NETWORK: STANDALONE
-      DATABASE_URL: postgres://lineproof:lineproof@postgres:5432/lineproof
     volumes:
       - ../backend:/app
       - /app/node_modules
-
-volumes:
-  postgres_data:

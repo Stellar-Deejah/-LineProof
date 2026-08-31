@@ -1,10 +1,10 @@
 # API Reference — Enrollments
 
-Base path: `/api/enrollments`
+Base path: `/api/v1/enrollments` *(Note: Legacy `/api/enrollments` is deprecated and forwards to `/api/v1/enrollments` with `Deprecation: true` header)*
 
 ---
 
-## POST /api/enrollments/enroll
+## POST /api/v1/enrollments/enroll
 
 Enrolls an identity into a queue. Returns a conflict flag if the identity is already enrolled.
 

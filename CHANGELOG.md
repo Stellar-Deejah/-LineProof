@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+- [sdk] Removed duplicate `generateKeypair()` from `types.ts` (unused; use `generateTestKeypair()` from `@lineproof/sdk/testing` instead)
+
 ### Added
 - [contracts/escrow] `get_total_held` function tracking running deposit totals per queue
 - [contracts/escrow] `Expired` status now correctly persisted in `expire()` and guarded against non-Active records
@@ -51,6 +54,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - [docs] `vrf-advancement.md`, `contract-storage-ttl.md` (stub), `backend-persistence.md`; refreshed `sdk-architecture.md` and `observability.md` (#35, #31, #4)
 
 ### Fixed
+- [contracts/factory] `require_admin`'s panic message renamed `"not authorized"` → `"unauthorized"` for consistency with `lineproof-identity`'s `revoke()`/`set_transfer_allowed()`; the stored-admin comparison itself was already in place (issue #176). Added `#[should_panic(expected = "unauthorized")]` regression tests for every admin-gated entrypoint (`set_config`, `register_queue`, `deactivate_queue`, `reactivate_queue`, `upgrade_queue`, `register_approved_hash`, `destroy_queue`) to pin the fix, since the two that existed used a bare `#[should_panic]` that would pass on any unrelated panic.
 - [sdk] **BREAKING**: Fixed critical bug where `Keypair.fromSecret()` was called with public key strings instead of secret keys across all transaction clients (`EnrollmentClient`, `EscrowClient`, `QueueClient`, `IdentityClient`). This caused TypeErrors at runtime and prevented all on-chain interactions. Replaced with `requireKeypair()` helper that validates credentials before transaction building.
 - [sdk] **BREAKING**: Fixed read-only contract queries (`getPosition`, `isEnrolled`, `isBound`) that were incorrectly using `Horizon.Server` instead of `SorobanRpc.Server`. Added `sorobanServer` instance to `LineProofClient` and implemented proper Soroban RPC simulation with XDR encoding/decoding for view calls.
 - [sdk] Added `LineProofClient.readOnly()` factory method for creating read-only client instances that explicitly disable mutation methods at construction time, providing clearer error messages when credentials are missing.

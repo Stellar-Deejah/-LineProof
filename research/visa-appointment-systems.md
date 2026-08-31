@@ -64,3 +64,27 @@ High-demand categories include:
 - Government portal authentication
 - QR code for appointment verification
 - SMS notifications for slot availability
+
+---
+
+## Concrete Technical Requirements
+
+### 1. Passport Hash & Biometric Identity Binding
+- Applicants must bind a salted SHA256 hash of their primary passport number and date of birth (`lineproof-identity::bind`).
+- Prevents visa touts and corrupt agencies from registering bulk speculative slots and reselling them to desperate applicants.
+
+### 2. Consular Daily Quota Batch Scheduling
+- Consular administrators release and advance interview slots using batch parameters (`lineproof-queue::advance(admin, batch_size)`), matching operational daily interview throughput per embassy location.
+- Slot allocation strictly follows FIFO sequence or deterministic VRF lottery to eliminate favoritism.
+
+### 3. Consular Fee Escrow & No-Show Forfeiture
+- Applicants lock visa application fees via `lineproof-escrow::deposit`.
+- Attending the embassy interview triggers fee release to the treasury; unexcused no-shows trigger `lineproof-escrow::expire`, forfeiting the deposit and freeing the slot for waitlisted applicants.
+
+### 4. Diplomatic Oversight & Anti-Corruption Audit Trail
+- All appointment bookings, cancellations, and manual admin adjustments generate immutable Soroban contract events (`lineproof_queue`, `lineproof_identity`).
+- Enables diplomatic inspector general audits to verify zero unauthorized slot injections or out-of-order processing.
+
+### 5. Geo-Fenced & Timezone Anti-Bot Throttling
+- The backend API (`/api/v1/queues`, `/api/v1/enrollments`) implements strict Geo-IP validation and rate-limiting middleware.
+- Ensures local citizens within the target diplomatic jurisdiction are not displaced by foreign bot farms executing script requests during off-hour slot releases.

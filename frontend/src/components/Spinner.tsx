@@ -10,7 +10,7 @@ export default function Spinner({ size = 'md', className = '', label = 'Loading'
   return (
     <span role="status" className={`inline-flex ${className}`}>
       <svg
-        className={`animate-spin text-slate-400 ${SIZE_MAP[size]}`}
+        className={`animate-spin text-slate-400 dark:text-slate-500 ${SIZE_MAP[size]}`}
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
         viewBox="0 0 24 24"

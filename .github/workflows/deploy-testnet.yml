@@ -4,16 +4,36 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type "deploy" to confirm testnet deployment'
-        required: true
+        description: 'Type "deploy" to confirm a real testnet deployment. Ignored when dry_run is true.'
+        required: false
         type: string
+        default: ''
+      dry_run:
+        description: 'Simulate the workflow: still builds WASM, but skips signing in, deploying, invoking initialize(), and committing the manifest. Use to validate the pipeline logic.'
+        required: false
+        type: boolean
+        default: false
+      pr_number:
+        description: 'Optional PR number to post the deployment summary to as a comment.'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
     name: Deploy Contracts to Testnet
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.confirm == 'deploy' }}
+    if: ${{ github.event.inputs.dry_run == 'true' || github.event.inputs.confirm == 'deploy' }}
     environment: testnet
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+      IS_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -36,16 +56,55 @@ jobs:
         working-directory: contracts
 
       - name: Install Stellar CLI
-        run: cargo install --locked stellar-cli --features opt
+        # `contract alias add` and `contract deploy --alias` (used below for
+        # idempotent redeploys) require stellar-cli >= 22. Pinned as a cargo
+        # version requirement rather than an exact patch so patch releases
+        # keep flowing without silently jumping a major version.
+        run: cargo install --locked stellar-cli --version "^22.0.0" --features opt
 
       - name: Configure Stellar identity
         id: configure-identity
+        if: ${{ env.IS_DRY_RUN != 'true' }}
         run: |
+          set -euo pipefail
           echo "${{ secrets.STELLAR_PRIVATE_KEY }}" | stellar keys add deployer --secret-key
           ADMIN_ADDRESS=$(stellar keys address deployer)
           echo "admin_address=$ADMIN_ADDRESS" >> "$GITHUB_OUTPUT"
         env:
           STELLAR_NETWORK: testnet
+
+      - name: Resolve deployer public key
+        id: deployer
+        run: |
+          set -euo pipefail
+          if [ "$IS_DRY_RUN" = "true" ]; then
+            echo "PUBLIC_KEY=DRYRUN-admin-public-key" >> "$GITHUB_OUTPUT"
+          else
+            PUBLIC_KEY=$(stellar keys address deployer)
+            echo "PUBLIC_KEY=$PUBLIC_KEY" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore contract aliases from previous deployment
+        # Re-registers aliases recorded in the last committed manifest so that
+        # `stellar contract deploy --alias <name>` below resolves to the
+        # existing contract instance (instead of deploying a new one) when the
+        # WASM for that contract hasn't changed. This is the deploy-level half
+        # of the idempotency guard described in the PR notes.
+        if: ${{ env.IS_DRY_RUN != 'true' }}
+        run: |
+          set -euo pipefail
+          if [ -f deployments/testnet-latest.json ]; then
+            echo "Found deployments/testnet-latest.json; restoring aliases."
+            jq -r '.contracts | to_entries[] | "\(.key) \(.value.contractId)"' deployments/testnet-latest.json |
+              while read -r alias_name contract_id; do
+                if [ -n "$contract_id" ]; then
+                  echo "Registering alias $alias_name -> $contract_id"
+                  stellar contract alias add "$alias_name" --id "$contract_id" --network testnet --overwrite
+                fi
+              done
+          else
+            echo "No previous deployment manifest found; this run will create fresh aliases."
+          fi
 
       - name: Deploy lineproof-enrollment
         id: deploy-enrollment
@@ -61,6 +120,19 @@ jobs:
             exit 1
           fi
           echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ "$IS_DRY_RUN" = "true" ]; then
+            echo "[dry-run] would deploy lineproof_enrollment.wasm"
+            echo "CONTRACT_ID=DRYRUN-lineproof-enrollment" >> "$GITHUB_OUTPUT"
+          else
+            CONTRACT_ID=$(stellar contract deploy \
+              --wasm contracts/target/wasm32-unknown-unknown/release/lineproof_enrollment.wasm \
+              --source deployer \
+              --network testnet \
+              --alias lineproof-enrollment)
+            echo "Deployed lineproof-enrollment: $CONTRACT_ID"
+            echo "CONTRACT_ID=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Deploy lineproof-identity
         id: deploy-identity
@@ -76,6 +148,19 @@ jobs:
             exit 1
           fi
           echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ "$IS_DRY_RUN" = "true" ]; then
+            echo "[dry-run] would deploy lineproof_identity.wasm"
+            echo "CONTRACT_ID=DRYRUN-lineproof-identity" >> "$GITHUB_OUTPUT"
+          else
+            CONTRACT_ID=$(stellar contract deploy \
+              --wasm contracts/target/wasm32-unknown-unknown/release/lineproof_identity.wasm \
+              --source deployer \
+              --network testnet \
+              --alias lineproof-identity)
+            echo "Deployed lineproof-identity: $CONTRACT_ID"
+            echo "CONTRACT_ID=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Deploy lineproof-escrow
         id: deploy-escrow
@@ -91,6 +176,19 @@ jobs:
             exit 1
           fi
           echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ "$IS_DRY_RUN" = "true" ]; then
+            echo "[dry-run] would deploy lineproof_escrow.wasm"
+            echo "CONTRACT_ID=DRYRUN-lineproof-escrow" >> "$GITHUB_OUTPUT"
+          else
+            CONTRACT_ID=$(stellar contract deploy \
+              --wasm contracts/target/wasm32-unknown-unknown/release/lineproof_escrow.wasm \
+              --source deployer \
+              --network testnet \
+              --alias lineproof-escrow)
+            echo "Deployed lineproof-escrow: $CONTRACT_ID"
+            echo "CONTRACT_ID=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Deploy lineproof-queue
         id: deploy-queue
@@ -106,6 +204,19 @@ jobs:
             exit 1
           fi
           echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ "$IS_DRY_RUN" = "true" ]; then
+            echo "[dry-run] would deploy lineproof_queue.wasm"
+            echo "CONTRACT_ID=DRYRUN-lineproof-queue" >> "$GITHUB_OUTPUT"
+          else
+            CONTRACT_ID=$(stellar contract deploy \
+              --wasm contracts/target/wasm32-unknown-unknown/release/lineproof_queue.wasm \
+              --source deployer \
+              --network testnet \
+              --alias lineproof-queue)
+            echo "Deployed lineproof-queue: $CONTRACT_ID"
+            echo "CONTRACT_ID=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Deploy lineproof-queue-factory
         id: deploy-factory
@@ -205,6 +316,121 @@ jobs:
           - ✅ \`lineproof-identity\` initialized with admin \`${{ steps.configure-identity.outputs.admin_address }}\`
           - ✅ \`lineproof-queue-factory\` initialized with admin \`${{ steps.configure-identity.outputs.admin_address }}\`
           EOF
+          set -euo pipefail
+          if [ "$IS_DRY_RUN" = "true" ]; then
+            echo "[dry-run] would deploy lineproof_queue_factory.wasm"
+            echo "CONTRACT_ID=DRYRUN-lineproof-queue-factory" >> "$GITHUB_OUTPUT"
+          else
+            CONTRACT_ID=$(stellar contract deploy \
+              --wasm contracts/target/wasm32-unknown-unknown/release/lineproof_queue_factory.wasm \
+              --source deployer \
+              --network testnet \
+              --alias lineproof-queue-factory)
+            echo "Deployed lineproof-queue-factory: $CONTRACT_ID"
+            echo "CONTRACT_ID=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Initialize lineproof-identity
+        id: init-identity
+        # Idempotency guard: attempt initialize() and inspect the result. The
+        # contract itself panics with "already initialized" on a second call
+        # against the same instance (e.g. a rerun that resolved the same
+        # aliased contract ID above) — that specific failure is treated as an
+        # intentional skip. Any other failure fails the job.
+        run: |
+          set -euo pipefail
+          if [ "$IS_DRY_RUN" = "true" ]; then
+            echo "[dry-run] would initialize lineproof-identity"
+            echo "INITIALIZED=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CONTRACT_ID="${{ steps.deploy-identity.outputs.CONTRACT_ID }}"
+          ADMIN="${{ steps.deployer.outputs.PUBLIC_KEY }}"
+          set +e
+          OUTPUT=$(stellar contract invoke \
+            --id "$CONTRACT_ID" \
+            --source deployer \
+            --network testnet \
+            -- initialize --admin "$ADMIN" 2>&1)
+          STATUS=$?
+          set -e
+          echo "$OUTPUT"
+          if [ $STATUS -eq 0 ]; then
+            echo "Initialized lineproof-identity ($CONTRACT_ID)"
+            echo "INITIALIZED=true" >> "$GITHUB_OUTPUT"
+          elif echo "$OUTPUT" | grep -qi "already initialized"; then
+            echo "lineproof-identity already initialized ($CONTRACT_ID); skipping"
+            echo "INITIALIZED=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Failed to initialize lineproof-identity"
+            exit 1
+          fi
+
+      - name: Initialize lineproof-queue-factory
+        id: init-factory
+        run: |
+          set -euo pipefail
+          if [ "$IS_DRY_RUN" = "true" ]; then
+            echo "[dry-run] would initialize lineproof-queue-factory"
+            echo "INITIALIZED=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CONTRACT_ID="${{ steps.deploy-factory.outputs.CONTRACT_ID }}"
+          ADMIN="${{ steps.deployer.outputs.PUBLIC_KEY }}"
+          set +e
+          OUTPUT=$(stellar contract invoke \
+            --id "$CONTRACT_ID" \
+            --source deployer \
+            --network testnet \
+            -- initialize --admin "$ADMIN" 2>&1)
+          STATUS=$?
+          set -e
+          echo "$OUTPUT"
+          if [ $STATUS -eq 0 ]; then
+            echo "Initialized lineproof-queue-factory ($CONTRACT_ID)"
+            echo "INITIALIZED=true" >> "$GITHUB_OUTPUT"
+          elif echo "$OUTPUT" | grep -qi "already initialized"; then
+            echo "lineproof-queue-factory already initialized ($CONTRACT_ID); skipping"
+            echo "INITIALIZED=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Failed to initialize lineproof-queue-factory"
+            exit 1
+          fi
+
+      - name: Write deployment summary
+        id: summary
+        run: |
+          set -euo pipefail
+          jq -n \
+            --argjson runNumber "${{ github.run_number }}" \
+            --arg network "testnet" \
+            --arg networkPassphrase "$NETWORK_PASSPHRASE" \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson dryRun "$IS_DRY_RUN" \
+            --arg admin "${{ steps.deployer.outputs.PUBLIC_KEY }}" \
+            --arg enrollmentId "${{ steps.deploy-enrollment.outputs.CONTRACT_ID }}" \
+            --arg identityId "${{ steps.deploy-identity.outputs.CONTRACT_ID }}" \
+            --arg escrowId "${{ steps.deploy-escrow.outputs.CONTRACT_ID }}" \
+            --arg queueId "${{ steps.deploy-queue.outputs.CONTRACT_ID }}" \
+            --arg factoryId "${{ steps.deploy-factory.outputs.CONTRACT_ID }}" \
+            --argjson identityInitialized "${{ steps.init-identity.outputs.INITIALIZED }}" \
+            --argjson factoryInitialized "${{ steps.init-factory.outputs.INITIALIZED }}" \
+            '{
+              runNumber: $runNumber,
+              network: $network,
+              networkPassphrase: $networkPassphrase,
+              timestamp: $timestamp,
+              dryRun: $dryRun,
+              admin: $admin,
+              contracts: {
+                "lineproof-enrollment": { contractId: $enrollmentId, envVar: "ENROLLMENT_CONTRACT_ID" },
+                "lineproof-identity": { contractId: $identityId, envVar: "IDENTITY_CONTRACT_ID", initialized: $identityInitialized },
+                "lineproof-escrow": { contractId: $escrowId, envVar: "ESCROW_CONTRACT_ID" },
+                "lineproof-queue": { contractId: $queueId, envVar: "QUEUE_CONTRACT_ID" },
+                "lineproof-queue-factory": { contractId: $factoryId, envVar: "QUEUE_FACTORY_CONTRACT_ID", initialized: $factoryInitialized }
+              }
+            }' > deployment-summary.json
+          cat deployment-summary.json
 
       - name: Upload deployment summary
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -214,3 +440,42 @@ jobs:
             deployment-summary.json
             backend.testnet.env
           retention-days: 30
+
+      - name: Commit deployment manifest
+        # Best-effort: the artifact upload above already satisfies "written to
+        # the repo, or uploaded as artifact". If branch protection on
+        # ${{ github.ref_name }} rejects a direct push (e.g. required reviews),
+        # warn instead of failing the whole deployment over a convenience commit.
+        if: ${{ env.IS_DRY_RUN != 'true' }}
+        run: |
+          set -euo pipefail
+          mkdir -p deployments
+          cp deployment-summary.json deployments/testnet-latest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deployments/testnet-latest.json
+          if git diff --cached --quiet; then
+            echo "No change to deployment manifest; skipping commit."
+          else
+            git commit -m "chore(deploy): record testnet deployment #${{ github.run_number }} [skip ci]"
+            if ! git push origin HEAD:${{ github.ref_name }}; then
+              echo "::warning::Could not push deployments/testnet-latest.json to ${{ github.ref_name }} (branch protection?). The full manifest is still on the testnet-deployment-${{ github.run_number }} artifact."
+            fi
+          fi
+
+      - name: Post deployment summary to PR
+        if: ${{ github.event.inputs.pr_number != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Testnet deployment summary (run #${{ github.run_number }}, dry_run=${IS_DRY_RUN})"
+            echo
+            echo '```json'
+            cat deployment-summary.json
+            echo '```'
+          } > pr-comment-body.md
+          gh pr comment "${{ github.event.inputs.pr_number }}" \
+            --repo "${{ github.repository }}" \
+            --body-file pr-comment-body.md

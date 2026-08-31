@@ -1,25 +1,21 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { createQueueService, type QueueService } from '../services/queueService.js';
+import { MemoryAdapter } from '../storage/index.js';
+import { QueueStatus } from '../schemas/queueStatus.js';
 
-let createQueue: typeof import('../services/queueService.js').createQueue;
-let getQueueById: typeof import('../services/queueService.js').getQueueById;
-let advanceQueue: typeof import('../services/queueService.js').advanceQueue;
-let closeQueue: typeof import('../services/queueService.js').closeQueue;
-let getQueueStats: typeof import('../services/queueService.js').getQueueStats;
-let openEnrollment: typeof import('../services/queueService.js').openEnrollment;
-let closeEnrollment: typeof import('../services/queueService.js').closeEnrollment;
-let QueueStatus: typeof import('../schemas/queueStatus.js').QueueStatus;
+// Issue #91: replaces the fragile `import('...?t=' + Date.now())` reload hack
+// with a fresh service over an injected store per test — real isolation.
+let createQueue: QueueService['createQueue'];
+let getQueueById: QueueService['getQueueById'];
+let advanceQueue: QueueService['advanceQueue'];
+let closeQueue: QueueService['closeQueue'];
+let getQueueStats: QueueService['getQueueStats'];
+let openEnrollment: QueueService['openEnrollment'];
+let closeEnrollment: QueueService['closeEnrollment'];
 
-beforeEach(async () => {
-  const mod = await import('../services/queueService.js?t=' + Date.now());
-  createQueue = mod.createQueue;
-  getQueueById = mod.getQueueById;
-  advanceQueue = mod.advanceQueue;
-  closeQueue = mod.closeQueue;
-  getQueueStats = mod.getQueueStats;
-  openEnrollment = mod.openEnrollment;
-  closeEnrollment = mod.closeEnrollment;
-  const modEnum = await import('../schemas/queueStatus.js?t=' + Date.now());
-  QueueStatus = modEnum.QueueStatus;
+beforeEach(() => {
+  ({ createQueue, getQueueById, advanceQueue, closeQueue, getQueueStats, openEnrollment, closeEnrollment } =
+    createQueueService(new MemoryAdapter()));
 });
 
 describe('createQueue', () => {
@@ -59,6 +55,27 @@ describe('advanceQueue', () => {
     closeQueue(q.id);
     expect(() => advanceQueue(q.id, 1)).toThrow(/Invalid status transition/);
   });
+
+  it('throws on advancing a Draft queue (lifecycle check)', () => {
+    const q = createQueue({ name: 'DQ', slug: 'draft-q', maxPositions: 10 });
+    expect(() => advanceQueue(q.id, 1)).toThrow(/Invalid status transition/);
+  });
+
+  it('throws on advancing an EnrollmentOpen queue (lifecycle check)', () => {
+    const q = createQueue({ name: 'EOQ', slug: 'enrollment-open-q', maxPositions: 10 });
+    openEnrollment(q.id);
+    expect(() => advanceQueue(q.id, 1)).toThrow(/Invalid status transition/);
+  });
+
+  it('allows advancing an EnrollmentClosed queue', () => {
+    const q = createQueue({ name: 'ECQ', slug: 'enrollment-closed-q', maxPositions: 10 });
+    openEnrollment(q.id);
+    closeEnrollment(q.id);
+    (q as any).enrolled = 5;
+    const updated = advanceQueue(q.id, 3);
+    expect(updated?.status).toBe(QueueStatus.AdvancementActive);
+    expect(updated?.advanced).toBe(3);
+  });
 });
 
 describe('getQueueStats', () => {
@@ -75,5 +92,16 @@ describe('getQueueStats', () => {
 
   it('returns undefined for unknown queue', () => {
     expect(getQueueStats('ghost')).toBeUndefined();
+  });
+});
+
+describe('createQueueService isolation', () => {
+  it('allows the same queue slug in separate stores', () => {
+    const first = createQueueService(new MemoryAdapter());
+    const second = createQueueService(new MemoryAdapter());
+    const payload = { name: 'Shared Queue', slug: 'shared-queue', maxPositions: 10 };
+
+    expect(first.createQueue(payload).id).toBe('shared-queue');
+    expect(second.createQueue(payload).id).toBe('shared-queue');
   });
 });

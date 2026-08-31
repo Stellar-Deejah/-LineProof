@@ -1,10 +1,11 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { useQueues, useQueue } from './useQueues';
+import { useQueues, useQueue, clearQueuesCache } from './useQueues';
 
 describe('useQueues hook', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
+    clearQueuesCache();
   });
 
   afterEach(() => {
@@ -45,8 +46,8 @@ describe('useQueues hook', () => {
   });
 
   it('handles cleanup (cancelled flag)', async () => {
-    let resolvePromise: (value: any) => void;
-    const promise = new Promise((resolve) => {
+    let resolvePromise!: (value: unknown) => void;
+    const promise = new Promise<unknown>((resolve) => {
       resolvePromise = resolve;
     });
 

@@ -6,7 +6,7 @@ This guide is for contributors working on LineProof's Soroban smart contracts.
 
 - Rust stable toolchain (`rustup toolchain install stable`)
 - `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`)
-- Soroban CLI (`cargo install --locked soroban-cli`)
+- Stellar CLI (`cargo install --locked stellar-cli --features opt`)
 
 ## Project Layout
 

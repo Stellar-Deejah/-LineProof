@@ -26,11 +26,18 @@ payload.
 
 ## Structured Logging
 
-Every request is logged as a single JSON line:
+`requestLogger` ([backend/src/middleware/requestLogger.ts](../backend/src/middleware/requestLogger.ts))
+is the single logging source for every request, in every environment — nothing
+else is mounted alongside it. Earlier versions also mounted `morgan`, producing
+two log lines per request in two incompatible formats; `morgan` was removed
+entirely (issue #202).
+
+In production and test, every request is logged as a single JSON line:
 
 ```json
 {
   "level": "INFO",
+  "requestId": "3f2d9a1e-...",
   "method": "POST",
   "path": "/api/enrollments/enroll",
   "status": 201,
@@ -40,6 +47,16 @@ Every request is logged as a single JSON line:
   "ts": "2025-07-01T10:00:00.000Z"
 }
 ```
+
+In development (`NODE_ENV=development`), the same middleware instead prints a
+single colored one-line summary in place of the JSON line, e.g.:
+
+```
+INFO GET /api/queues 200 4ms
+```
+
+(`INFO` in green, `WARN` in yellow, `ERROR` in red.) Either way, exactly one
+log line is emitted per request.
 
 Log levels: `INFO` (2xx/3xx), `WARN` (4xx), `ERROR` (5xx).
 

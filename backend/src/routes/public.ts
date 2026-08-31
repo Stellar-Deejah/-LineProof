@@ -4,6 +4,8 @@
  */
 import { Router, type IRouter } from 'express';
 import { listQueues, getQueueStats } from '../services/queueService.js';
+import { healthPayload } from '../health.js';
+import { NotFoundError } from '../errors/index.js';
 import { PublicQueueSummaryListSchema, PublicQueueStatsSchema } from '../schemas/publicQueue.js';
 
 const router: IRouter = Router();
@@ -24,12 +26,15 @@ router.get('/queues', (_req, res) => {
   res.json(summary);
 });
 
-/** GET /public/queues/:id/stats — public queue statistics */
-router.get('/queues/:id/stats', (req, res) => {
-  const stats = getQueueStats(req.params.id);
-  if (!stats) return res.status(404).json({ message: 'Queue not found' });
-  const validatedStats = PublicQueueStatsSchema.parse(stats);
-  res.json(validatedStats);
+router.get('/queues/:id/stats', (req, res, next) => {
+  try {
+    const stats = getQueueStats(req.params.id);
+    if (!stats) return res.status(404).json({ message: 'Queue not found' });
+    const validatedStats = PublicQueueStatsSchema.parse(stats);
+    res.json(validatedStats);
+  } catch (err) {
+    next(err);
+  }
 });
 
 /**

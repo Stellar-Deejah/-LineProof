@@ -9,7 +9,10 @@ target
 !.env.example
 *.local
 *.log
-.vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea
 coverage
 .nyc_output
+test_snapshots/

@@ -12,7 +12,9 @@ new LineProofClient(config: LineProofConfig)
 
 **Parameters:**
 - `networkPassphrase`: Stellar network passphrase (TESTNET/PUBLIC/STANDALONE)
-- `rpcServerUrl`: Soroban RPC endpoint URL
+- `horizonUrl`: Horizon REST endpoint URL (e.g. `https://horizon-testnet.stellar.org`)
+- `sorobanRpcUrl`: Soroban RPC endpoint URL (e.g. `https://soroban-testnet.stellar.org`)
+- `rpcServerUrl`: **Deprecated** — fallback for whichever of `horizonUrl`/`sorobanRpcUrl` is omitted; see [`docs/sdk-architecture.md`](../sdk-architecture.md#config-horizonurl--sorobanrpcurl-and-the-deprecated-rpcserverurl)
 - `privateKey`: Optional signing key for admin operations
 - `publicKey`: Optional public key for read-only operations
 - `timeoutMs`: Request timeout (default: 30000)
@@ -25,6 +27,8 @@ new LineProofClient(config: LineProofConfig)
 | `deployFactory()` | Deploy new QueueFactory contract |
 | `getPublicKey()` | Get configured signing key |
 | `getNetworkPassphrase()` | Get network configuration |
+| `getEvents(filter?: EventFilter) -> Promise<Page<AnyLineProofEvent>>` | Fetch and deserialize contract events via Soroban RPC; see [`docs/sdk-architecture.md`](../sdk-architecture.md#event-reads-getevents--streamevents) for the cursor format and deserialization strategy |
+| `streamEvents(filter, callback, intervalMs?) -> () => void` | Poll `getEvents` on an interval, invoking `callback` per event; returns an unsubscribe function |
 
 ---
 

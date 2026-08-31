@@ -1,0 +1,32 @@
+{
+  "runNumber": 42,
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "timestamp": "2026-08-26T14:03:11Z",
+  "dryRun": false,
+  "admin": "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
+  "contracts": {
+    "lineproof-enrollment": {
+      "contractId": "CA6PUJLBYKZKUEKLZJMKBZLEUGFYY4Z3F5UAT3P66EBZM5RFHXVVIODJ",
+      "envVar": "ENROLLMENT_CONTRACT_ID"
+    },
+    "lineproof-identity": {
+      "contractId": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+      "envVar": "IDENTITY_CONTRACT_ID",
+      "initialized": true
+    },
+    "lineproof-escrow": {
+      "contractId": "CB64D3G7SM224Y3SGVGCS6ZKI3ZDVUZAY5T35VE7EDDVPRB2LSXTNVUL",
+      "envVar": "ESCROW_CONTRACT_ID"
+    },
+    "lineproof-queue": {
+      "contractId": "CCJZ5DGASBWQXR5MPFCJXMBI333XE5U3FSJTNQU7RIKE3P5GQ5IBJTFV",
+      "envVar": "QUEUE_CONTRACT_ID"
+    },
+    "lineproof-queue-factory": {
+      "contractId": "CDQCAWU5UENSQZMQGXKQ5GQZ22F5RB2FVAKMFJHKUXPBAKASGCDTUD5R",
+      "envVar": "QUEUE_FACTORY_CONTRACT_ID",
+      "initialized": true
+    }
+  }
+}

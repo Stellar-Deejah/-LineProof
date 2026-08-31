@@ -51,4 +51,41 @@ describe('paginate', () => {
     const page = paginate(big, {}, getCursor);
     expect(page.items).toHaveLength(50);
   });
+
+  it('handles an empty page', () => {
+    const page = paginate([] as (typeof items)[0][], { limit: 5 }, getCursor);
+    expect(page.items).toEqual([]);
+    expect(page.count).toBe(0);
+    expect(page.nextCursor).toBeUndefined();
+  });
+
+  it('handles a single-item page with more available', () => {
+    const page = paginate(items, { limit: 1 }, getCursor);
+    expect(page.items).toHaveLength(1);
+    expect(page.count).toBe(1);
+    expect(page.nextCursor).toBeDefined();
+    const decoded = decodeCursor(page.nextCursor as string);
+    expect(decoded.ledger).toBe(items[0].ledger);
+    expect(decoded.index).toBe(items[0].idx + 1);
+  });
+
+  it('handles a single-item page with no more available', () => {
+    const page = paginate([items[0]], { limit: 5 }, getCursor);
+    expect(page.items).toHaveLength(1);
+    expect(page.nextCursor).toBeUndefined();
+  });
+
+  it('passes the item index within the batch to getCursor', () => {
+    const seen: number[] = [];
+    const page = paginate(
+      items,
+      { limit: 3 },
+      (item, index) => {
+        seen.push(index);
+        return { ledger: item.ledger, index: item.idx };
+      },
+    );
+    expect(page.items).toHaveLength(3);
+    expect(seen).toEqual([2]);
+  });
 });

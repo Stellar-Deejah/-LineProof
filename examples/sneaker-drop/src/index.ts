@@ -1,27 +1,56 @@
-import { LineProofClient, QueueClient, EnrollmentClient, EscrowClient, IdentityClient } from '@lineproof/sdk';
+import { LineProofClient, QueueClient, EnrollmentClient } from '@lineproof/sdk';
 
-export interface ExampleEnv {
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `Missing required environment variable: ${name}. ` +
+        'Copy .env.example to .env and fill in your testnet values ' +
+        '(see examples/README.md for how to deploy a factory and queue).',
+    );
+  }
+  return value;
+}
+
+interface DevEnv {
   client: LineProofClient;
   factoryContractId: string;
   queueContractId: string;
-  admin: any;
-  participant: any;
 }
 
-async function createDefaultDevEnv(): Promise<ExampleEnv> {
+async function createDevEnv(): Promise<DevEnv> {
+  const factoryContractId = requireEnv('FACTORY_CONTRACT_ID');
+  const queueContractId = requireEnv('QUEUE_CONTRACT_ID');
+
   const client = new LineProofClient({
-    rpcServerUrl: 'http://localhost:8000/soroban/rpc',
-    networkPassphrase: 'Standalone Network ; February 2017',
+    horizonUrl: process.env.HORIZON_URL || 'https://horizon-testnet.stellar.org',
+    sorobanRpcUrl: process.env.SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
+    networkPassphrase: process.env.NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015',
     privateKey: process.env.LINEPROOF_PRIVATE_KEY,
   });
 
-  return {
-    client,
-    factoryContractId: 'CFACTORY123',
-    queueContractId: 'CQUEUE123',
-    admin: { id: 'admin', publicKey: 'GADMIN...' },
-    participant: { id: 'user', publicKey: 'GUSER...' },
-  };
+  return { client, factoryContractId, queueContractId };
 }
 
-export { createDefaultDevEnv };
+async function run(): Promise<void> {
+  const { client, queueContractId } = await createDevEnv();
+  const queue = new QueueClient(client, { queueContractId });
+  const enrollment = new EnrollmentClient(client, queueContractId);
+
+  console.log('Sneaker drop example ready.', { queueContractId });
+
+  // Uncomment once you have a live testnet queue with at least one enrollee:
+  // const position = await queue.getPosition(1);
+  // console.log('Queue position:', position);
+  // const isEnrolled = await enrollment.isEnrolled(queueContractId, '<G... address>');
+  // console.log('Is enrolled:', isEnrolled);
+
+  void enrollment; // referenced above; keeps the import meaningful before uncommenting
+}
+
+run().catch((error) => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+});
+
+export { createDevEnv };

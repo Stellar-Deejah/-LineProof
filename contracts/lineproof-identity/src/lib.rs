@@ -4,6 +4,8 @@ use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Ve
 const TTL_THRESHOLD: u32 = 10_000;
 /// TTL extension target: extend to this many ledgers (~1 year at 5s/ledger)
 const TTL_EXTEND_TO: u32 = 6_307_200;
+/// Maximum number of queue bindings allowed per identity record to prevent storage bloat
+pub const MAX_QUEUES_PER_IDENTITY: u32 = 100;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[contracttype]
@@ -31,7 +33,6 @@ pub struct TransferAttempt {
     pub reverted: bool,
 }
 
-#[contract]
 pub trait Identity {
     fn bind(env: Env, identity: Address, queue_id: Symbol);
     fn unbind(env: Env, identity: Address, queue_id: Symbol);
@@ -45,6 +46,7 @@ pub trait Identity {
     fn set_transfer_allowed(env: Env, admin: Address, allowed: bool);
 }
 
+#[contract]
 pub struct IdentityImpl;
 
 #[contractimpl]
@@ -55,6 +57,12 @@ impl Identity for IdentityImpl {
         if matches!(record.status, BindingStatus::Revoked) {
             panic!("identity revoked");
         }
+        if record.queues.iter().any(|q| q == queue_id) {
+            panic!("already_bound");
+        }
+        if record.queues.len() >= MAX_QUEUES_PER_IDENTITY {
+            panic!("max_queues_reached");
+        }
         record.queues.push_back(queue_id.clone());
         if record.bound_at == 0 {
             record.bound_at = env.ledger().timestamp();
@@ -62,29 +70,49 @@ impl Identity for IdentityImpl {
         record.status = BindingStatus::Bound;
         let key = Self::record_key(&env, &identity);
         env.storage().persistent().set(&key, &record);
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        emit(&env, Symbol::new(&env, "Bound"), queue_id, &identity, env.ledger().timestamp());
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        emit(
+            &env,
+            Symbol::new(&env, "Bound"),
+            queue_id,
+            &identity,
+            env.ledger().timestamp(),
+        );
     }
 
     fn unbind(env: Env, identity: Address, queue_id: Symbol) {
         identity.require_auth();
         let mut record = Self::get_record_internal(&env, &identity);
+        let is_bound = record.queues.iter().any(|q| q == queue_id);
+        if !is_bound {
+            return;
+        }
         let mut updated: Vec<Symbol> = Vec::new(&env);
         for q in record.queues.iter() {
-            if q != &queue_id {
+            if q != queue_id {
                 updated.push_back(q.clone());
             }
         }
         record.queues = updated;
         let key = Self::record_key(&env, &identity);
         env.storage().persistent().set(&key, &record);
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        emit(&env, Symbol::new(&env, "Unbound"), queue_id, &identity, env.ledger().timestamp());
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        emit(
+            &env,
+            Symbol::new(&env, "Unbound"),
+            queue_id,
+            &identity,
+            env.ledger().timestamp(),
+        );
     }
 
     fn is_bound(env: Env, identity: Address, queue_id: Symbol) -> bool {
         let record = Self::get_record_internal(&env, &identity);
-        record.queues.iter().any(|q| q == &queue_id)
+        record.queues.iter().any(|q| q == queue_id)
     }
 
     fn can_transfer(env: Env, from: Address, to: Address, queue_id: Symbol) -> bool {
@@ -97,7 +125,7 @@ impl Identity for IdentityImpl {
             return false;
         }
 
-        let is_bound = record.queues.iter().any(|q| q == &queue_id);
+        let is_bound = record.queues.iter().any(|q| q == queue_id);
         if !is_bound {
             return false;
         }
@@ -114,7 +142,9 @@ impl Identity for IdentityImpl {
         }
         let allowed_key = Symbol::new(&env, "transfer_allow");
         env.storage().persistent().set(&allowed_key, &allowed);
-        env.storage().persistent().extend_ttl(&allowed_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&allowed_key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     fn record_transfer_attempt(env: Env, from: Address, to: Address, queue_id: Symbol) {
@@ -126,8 +156,16 @@ impl Identity for IdentityImpl {
         };
         let key = Self::attempt_key(&env, &from, &to, &queue_id);
         env.storage().persistent().set(&key, &attempt);
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        emit(&env, Symbol::new(&env, "TransferReverted"), queue_id, &from, env.ledger().timestamp());
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        emit(
+            &env,
+            Symbol::new(&env, "TransferReverted"),
+            queue_id,
+            &from,
+            env.ledger().timestamp(),
+        );
     }
 
     fn get_record(env: Env, identity: Address) -> Option<IdentityRecord> {
@@ -146,8 +184,9 @@ impl Identity for IdentityImpl {
             panic!("already initialized");
         }
         env.storage().persistent().set(&key, &admin);
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        env.storage().persistent().extend_ttl(&env.current_contract_address(), TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 
     fn get_admin(env: Env) -> Option<Address> {
@@ -158,7 +197,9 @@ impl Identity for IdentityImpl {
     fn revoke(env: Env, admin: Address, identity: Address) {
         admin.require_auth();
         let admin_key = Symbol::new(&env, "admin");
-        let stored_admin: Address = env.storage().persistent()
+        let stored_admin: Address = env
+            .storage()
+            .persistent()
             .get(&admin_key)
             .unwrap_or_else(|| panic!("not initialized"));
         if admin != stored_admin {
@@ -168,25 +209,36 @@ impl Identity for IdentityImpl {
         record.status = BindingStatus::Revoked;
         let key = Self::record_key(&env, &identity);
         env.storage().persistent().set(&key, &record);
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        emit(&env, Symbol::new(&env, "Revoked"), Symbol::new(&env, ""), &identity, env.ledger().timestamp());
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        emit(
+            &env,
+            Symbol::new(&env, "Revoked"),
+            Symbol::new(&env, ""),
+            &identity,
+            env.ledger().timestamp(),
+        );
     }
 }
 
 impl IdentityImpl {
     fn get_record_internal(env: &Env, identity: &Address) -> IdentityRecord {
         let key = Self::record_key(env, identity);
-        let record = env.storage()
-            .persistent()
-            .get(&key)
-            .unwrap_or(IdentityRecord {
+        if env.storage().persistent().has(&key) {
+            let record = env.storage().persistent().get(&key).unwrap();
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+            record
+        } else {
+            IdentityRecord {
                 identity: identity.clone(),
                 bound_at: 0,
                 queues: Vec::new(env),
                 status: BindingStatus::Unbound,
-            });
-        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        record
+            }
+        }
     }
 
     pub fn record_key(env: &Env, identity: &Address) -> (Symbol, Address) {
@@ -203,12 +255,12 @@ impl IdentityImpl {
     }
 }
 
-fn emit(env: &Env, kind: Symbol, queue_id: Symbol, _identity: &Address, _timestamp: u64) {
-    env.events().publish((
-        Symbol::new(env, "lineproof.identity"),
-        kind,
-        queue_id,
-    ));
+fn emit(env: &Env, kind: Symbol, queue_id: Symbol, identity: &Address, timestamp: u64) {
+    // #83: carry the identity and timestamp in the event payload.
+    env.events().publish(
+        (Symbol::new(env, "lineproof_identity"), kind, queue_id),
+        (identity.clone(), timestamp),
+    );
 }
 
 #[cfg(test)]

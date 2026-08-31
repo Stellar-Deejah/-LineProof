@@ -63,3 +63,27 @@ Waitlists are common for selective institutions:
 - Student portal authentication
 - Email/SMS notification system
 - Admissions management dashboard
+
+---
+
+## Concrete Technical Requirements
+
+### 1. FERPA & GDPR De-Identified Hash Preservation
+- Public queue queries (`GET /public/queues`) and on-chain logs must reference cryptographic hashes of Common App / Institutional Student IDs.
+- Student PII (name, SSN, GPA) is stored strictly off-chain in compliance with FERPA (US) and GDPR (EU) regulations.
+
+### 2. Multi-Category Quota Pool Partitioning
+- Admissions offices configure separate waitlist pools (e.g. In-State, Out-of-State, International, Departmental Honors) as distinct queue instances under `lineproof-queue-factory`.
+- Each pool maintains independent capacity bounds (`max_positions`) and advancement rules.
+
+### 3. Tuition Deposit Escrow & Acceptance Settlement
+- Applicants offered waitlist advancement post a commitment deposit via `lineproof-escrow::deposit`.
+- Accepting admission executes `lineproof-escrow::release` to the university bursar; declining or expiring triggers `lineproof-escrow::refund` and automatically promotes the next applicant.
+
+### 4. Accreditation & Administrative Audit Verification
+- All waitlist status changes generate immutable Soroban contract events (`lineproof_queue`, `lineproof_enrollment`).
+- Admissions compliance officers can export cryptographic proofs demonstrating zero unauthorized queue-skipping during higher-education accreditation audits.
+
+### 5. Slate / Banner / Workday SIS Integration API
+- Backend API (`/api/v1/enrollments`) integrates with university Student Information Systems (SIS) via OAuth2 and mTLS connections.
+- Enables real-time synchronization between portal decision releases and Soroban contract advancements.

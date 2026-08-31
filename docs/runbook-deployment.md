@@ -83,13 +83,34 @@ soroban contract deploy \
 
 Save all returned contract IDs to `deployments/testnet.json`.
 
+> The manual steps above are automated end-to-end by
+> [`.github/workflows/deploy-testnet.yml`](../.github/workflows/deploy-testnet.yml)
+> (`workflow_dispatch`, with a `dry_run` mode for testing the pipeline). It
+> captures every contract ID, calls `initialize()` on the factory and
+> identity contracts, and commits the result to
+> [`deployments/testnet-latest.json`](../deployments/testnet-latest.example.json).
+> Prefer it over the manual steps below for testnet.
+
 ---
 
-## 5. Initialize the Factory
+## 5. Initialize the Factory and Identity Contracts
+
+Both `lineproof-queue-factory` and `lineproof-identity` require `initialize()`
+before use — calls against either one will panic with `not initialized`
+otherwise. Calling `initialize()` a second time against the same deployed
+instance panics with `already initialized`; treat that as a no-op, not an
+error.
 
 ```bash
 soroban contract invoke \
   --id $FACTORY_CONTRACT_ID \
+  --source deployer \
+  --network testnet \
+  -- initialize \
+  --admin $(soroban keys address deployer)
+
+soroban contract invoke \
+  --id $IDENTITY_CONTRACT_ID \
   --source deployer \
   --network testnet \
   -- initialize \

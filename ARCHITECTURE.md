@@ -12,15 +12,15 @@ LineProof is organized as a Soroban protocol with TypeScript integration tooling
 
 ## Repository Boundaries
 
-| Directory | Responsibility |
-|-----------|----------------|
-| `contracts/` | Soroban contract workspace and protocol state machines. |
-| `sdk/` | TypeScript client package for contract invocation, query helpers, and typed domain models. |
-| `backend/` | Reference API for operators that need indexing, notifications, or integration adapters. |
-| `frontend/` | Reference UI for browsing queues and participant status. |
-| `examples/` | Runnable integration sketches for target domains. |
-| `docs/` | Maintainer and integrator documentation. |
-| `research/` | Domain research that informs product and protocol design. |
+| Directory    | Responsibility                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------ |
+| `contracts/` | Soroban contract workspace and protocol state machines.                                    |
+| `sdk/`       | TypeScript client package for contract invocation, query helpers, and typed domain models. |
+| `backend/`   | Reference API for operators that need indexing, notifications, or integration adapters.    |
+| `frontend/`  | Reference UI for browsing queues and participant status.                                   |
+| `examples/`  | Runnable integration sketches for target domains.                                          |
+| `docs/`      | Maintainer and integrator documentation.                                                   |
+| `research/`  | Domain research that informs product and protocol design.                                  |
 
 ## Contract Architecture
 
@@ -85,8 +85,15 @@ Every fairness-relevant transition should emit a structured event:
 - Queue creation and lifecycle transitions.
 - Enrollment and cancellation.
 - Position advancement.
+- **Position skipping** (when a position is examined but not advanced due to Cancelled status).
 - Escrow deposit, release, refund, and expiry.
 - Identity binding and rejected transfer attempts.
+
+**Batch Advancement Semantics**: The `advance(batch_size)` function examines up to `batch_size` positions sequentially (FIFO) starting from the current cursor. It advances all Pending positions encountered and emits a Skipped event for each Cancelled position. The return value is the list of position IDs that were actually advanced (not examined). This means:
+
+- `advance(batch_size: 5)` with 3 pending + 2 cancelled positions returns a vec of 3 IDs and advances exactly 3 positions.
+- Auditors can reconstruct advancement history by collecting Advanced and Skipped events in order.
+- If all positions in a batch are Cancelled, the function returns an empty vec and does not transition the queue from EnrollmentClosed to AdvancementActive.
 
 Auditors should be able to rebuild queue history from contract storage and events.
 
@@ -105,6 +112,7 @@ The implementation uses a defense-in-depth strategy:
 3. **Contract instance**: `initialize()` functions extend the contract instance TTL
 
 TTL constants:
+
 - `TTL_THRESHOLD = 10_000` (~13.8 hours at 5s/ledger) - renew if TTL below this
 - `TTL_EXTEND_TO = 6_307_200` (~1 year at 5s/ledger) - target TTL when renewing
 

@@ -13,4 +13,21 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    target: ['es2020', 'chrome87', 'firefox78', 'safari14'],
+    sourcemap: false,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@stellar/stellar-sdk') || id.includes('@stellar/base')) {
+              return 'stellar-vendor';
+            }
+            return 'vendor';
+          }
+        },
+      },
+    },
+  },
 });

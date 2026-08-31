@@ -48,6 +48,9 @@ jobs:
             contracts/target
           key: ${{ runner.os }}-cargo-release-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-release-
+      - name: Run contract unit tests
+        run: cargo test --workspace
+        working-directory: contracts
       - name: Build WASM artifacts
         run: cargo build --target wasm32-unknown-unknown --release
         working-directory: contracts
@@ -71,6 +74,10 @@ jobs:
         with:
           name: wasm-artifacts
           path: artifacts/
+      - name: Generate SHA256 checksums
+        run: |
+          cd artifacts
+          sha256sum *.wasm > checksums.txt
       - name: Extract changelog entry
         id: changelog
         run: |
@@ -83,6 +90,8 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           body: ${{ steps.changelog.outputs.notes }}
-          files: artifacts/*.wasm
+          files: |
+            artifacts/*.wasm
+            artifacts/checksums.txt
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}

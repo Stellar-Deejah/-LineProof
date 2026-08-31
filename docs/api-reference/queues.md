@@ -1,10 +1,10 @@
 # API Reference — Queues
 
-Base path: `/api/queues`
+Base path: `/api/v1/queues` *(Note: Legacy `/api/queues` is deprecated and forwards to `/api/v1/queues` with `Deprecation: true` header)*
 
 ---
 
-## GET /api/queues
+## GET /api/v1/queues
 
 Returns all registered queues. Accepts optional `?status=` filter.
 

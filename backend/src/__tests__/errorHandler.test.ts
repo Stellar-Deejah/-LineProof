@@ -1,11 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import { errorHandler } from '../../middleware/errorHandler.js';
+import { errorHandler } from '../middleware/errorHandler.js';
+import { requestId } from '../middleware/requestId.js';
+import { NotFoundError } from '../errors/index.js';
 
 describe('errorHandler middleware', () => {
   const createTestApp = () => {
     const app = express();
+    app.use(requestId);
     app.get('/error-500', () => {
       throw new Error('Something exploded');
     });
@@ -13,6 +16,9 @@ describe('errorHandler middleware', () => {
       const err: any = new Error('Bad Request');
       err.status = 400;
       throw err;
+    });
+    app.get('/error-404', () => {
+      throw new NotFoundError('Queue not found');
     });
     app.use(errorHandler);
     return app;
@@ -55,5 +61,34 @@ describe('errorHandler middleware', () => {
     const res = await request(app).get('/error-500');
     expect(res.body.error.stack).toBeUndefined();
     process.env.NODE_ENV = originalEnv;
+  });
+
+  it('includes the requestId that correlates with the X-Request-Id response header', async () => {
+    const app = createTestApp();
+    const res = await request(app).get('/error-400');
+    expect(res.headers['x-request-id']).toBeDefined();
+    expect(res.body.error.requestId).toBe(res.headers['x-request-id']);
+  });
+
+  it('echoes an incoming X-Request-Id header back so callers can correlate their own logs', async () => {
+    const app = createTestApp();
+    const res = await request(app).get('/error-400').set('X-Request-Id', 'client-supplied-id');
+    expect(res.headers['x-request-id']).toBe('client-supplied-id');
+    expect(res.body.error.requestId).toBe('client-supplied-id');
+  });
+
+  it('produces the unified { error: {...} } shape for typed HttpError subclasses (e.g. NotFoundError)', async () => {
+    const app = createTestApp();
+    const res = await request(app).get('/error-404');
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({
+      error: {
+        message: 'Queue not found',
+        status: 404,
+        path: '/error-404',
+        timestamp: expect.any(String),
+        requestId: expect.any(String),
+      },
+    });
   });
 });

@@ -2,11 +2,19 @@
   "name": "@lineproof/example-visa-appointment",
   "version": "0.1.0",
   "private": true,
-  "description": "LineProof example: visa appointment scheduling queue",
+  "type": "module",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ --ext ts"
   },
   "dependencies": {
     "@lineproof/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "eslint": "^8.57.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.5.0"
   }
 }
