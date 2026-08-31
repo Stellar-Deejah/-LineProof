@@ -63,10 +63,13 @@ jobs:
         run: cargo install --locked stellar-cli --version "^22.0.0" --features opt
 
       - name: Configure Stellar identity
+        id: configure-identity
         if: ${{ env.IS_DRY_RUN != 'true' }}
         run: |
           set -euo pipefail
           echo "${{ secrets.STELLAR_PRIVATE_KEY }}" | stellar keys add deployer --secret-key
+          ADMIN_ADDRESS=$(stellar keys address deployer)
+          echo "admin_address=$ADMIN_ADDRESS" >> "$GITHUB_OUTPUT"
         env:
           STELLAR_NETWORK: testnet
 
@@ -106,6 +109,17 @@ jobs:
       - name: Deploy lineproof-enrollment
         id: deploy-enrollment
         run: |
+          OUTPUT=$(stellar contract deploy \
+            --wasm contracts/target/wasm32-unknown-unknown/release/lineproof_enrollment.wasm \
+            --source deployer \
+            --network testnet 2>&1)
+          echo "$OUTPUT"
+          CONTRACT_ID=$(echo "$OUTPUT" | grep -oP 'C[A-Z0-9]{55}' | head -n 1)
+          if [ -z "$CONTRACT_ID" ]; then
+            echo "Failed to deploy enrollment contract"
+            exit 1
+          fi
+          echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
           set -euo pipefail
           if [ "$IS_DRY_RUN" = "true" ]; then
             echo "[dry-run] would deploy lineproof_enrollment.wasm"
@@ -123,6 +137,17 @@ jobs:
       - name: Deploy lineproof-identity
         id: deploy-identity
         run: |
+          OUTPUT=$(stellar contract deploy \
+            --wasm contracts/target/wasm32-unknown-unknown/release/lineproof_identity.wasm \
+            --source deployer \
+            --network testnet 2>&1)
+          echo "$OUTPUT"
+          CONTRACT_ID=$(echo "$OUTPUT" | grep -oP 'C[A-Z0-9]{55}' | head -n 1)
+          if [ -z "$CONTRACT_ID" ]; then
+            echo "Failed to deploy identity contract"
+            exit 1
+          fi
+          echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
           set -euo pipefail
           if [ "$IS_DRY_RUN" = "true" ]; then
             echo "[dry-run] would deploy lineproof_identity.wasm"
@@ -140,6 +165,17 @@ jobs:
       - name: Deploy lineproof-escrow
         id: deploy-escrow
         run: |
+          OUTPUT=$(stellar contract deploy \
+            --wasm contracts/target/wasm32-unknown-unknown/release/lineproof_escrow.wasm \
+            --source deployer \
+            --network testnet 2>&1)
+          echo "$OUTPUT"
+          CONTRACT_ID=$(echo "$OUTPUT" | grep -oP 'C[A-Z0-9]{55}' | head -n 1)
+          if [ -z "$CONTRACT_ID" ]; then
+            echo "Failed to deploy escrow contract"
+            exit 1
+          fi
+          echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
           set -euo pipefail
           if [ "$IS_DRY_RUN" = "true" ]; then
             echo "[dry-run] would deploy lineproof_escrow.wasm"
@@ -157,6 +193,17 @@ jobs:
       - name: Deploy lineproof-queue
         id: deploy-queue
         run: |
+          OUTPUT=$(stellar contract deploy \
+            --wasm contracts/target/wasm32-unknown-unknown/release/lineproof_queue.wasm \
+            --source deployer \
+            --network testnet 2>&1)
+          echo "$OUTPUT"
+          CONTRACT_ID=$(echo "$OUTPUT" | grep -oP 'C[A-Z0-9]{55}' | head -n 1)
+          if [ -z "$CONTRACT_ID" ]; then
+            echo "Failed to deploy queue contract"
+            exit 1
+          fi
+          echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
           set -euo pipefail
           if [ "$IS_DRY_RUN" = "true" ]; then
             echo "[dry-run] would deploy lineproof_queue.wasm"
@@ -174,6 +221,101 @@ jobs:
       - name: Deploy lineproof-queue-factory
         id: deploy-factory
         run: |
+          OUTPUT=$(stellar contract deploy \
+            --wasm contracts/target/wasm32-unknown-unknown/release/lineproof_queue_factory.wasm \
+            --source deployer \
+            --network testnet 2>&1)
+          echo "$OUTPUT"
+          CONTRACT_ID=$(echo "$OUTPUT" | grep -oP 'C[A-Z0-9]{55}' | head -n 1)
+          if [ -z "$CONTRACT_ID" ]; then
+            echo "Failed to deploy factory contract"
+            exit 1
+          fi
+          echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Initialize lineproof-identity
+        run: |
+          stellar contract invoke \
+            --id ${{ steps.deploy-identity.outputs.contract_id }} \
+            --source deployer \
+            --network testnet \
+            -- \
+            initialize \
+            --admin ${{ steps.configure-identity.outputs.admin_address }}
+
+      - name: Initialize lineproof-queue-factory
+        run: |
+          stellar contract invoke \
+            --id ${{ steps.deploy-factory.outputs.contract_id }} \
+            --source deployer \
+            --network testnet \
+            -- \
+            initialize \
+            --admin ${{ steps.configure-identity.outputs.admin_address }}
+
+      - name: Write deployment summary
+        id: write-summary
+        run: |
+          cat <<EOF > deployment-summary.json
+          {
+            "run": ${{ github.run_number }},
+            "network": "testnet",
+            "network_passphrase": "Test SDF Network ; September 2015",
+            "rpc_url": "https://soroban-testnet.stellar.org",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "admin_public_key": "${{ steps.configure-identity.outputs.admin_address }}",
+            "contracts": {
+              "enrollment": "${{ steps.deploy-enrollment.outputs.contract_id }}",
+              "identity": "${{ steps.deploy-identity.outputs.contract_id }}",
+              "escrow": "${{ steps.deploy-escrow.outputs.contract_id }}",
+              "queue": "${{ steps.deploy-queue.outputs.contract_id }}",
+              "factory": "${{ steps.deploy-factory.outputs.contract_id }}"
+            }
+          }
+          EOF
+
+      - name: Generate Backend Environment File
+        id: backend-env
+        run: |
+          cat <<EOF > backend.testnet.env
+          PORT=4000
+          NODE_ENV=production
+          STELLAR_NETWORK=TESTNET
+          NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+          SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+          ENROLLMENT_CONTRACT_ID=${{ steps.deploy-enrollment.outputs.contract_id }}
+          IDENTITY_CONTRACT_ID=${{ steps.deploy-identity.outputs.contract_id }}
+          ESCROW_CONTRACT_ID=${{ steps.deploy-escrow.outputs.contract_id }}
+          QUEUE_CONTRACT_ID=${{ steps.deploy-queue.outputs.contract_id }}
+          QUEUE_FACTORY_CONTRACT_ID=${{ steps.deploy-factory.outputs.contract_id }}
+          EOF
+
+      - name: Post Job Summary
+        run: |
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          # 🚀 LineProof Testnet Deployment Summary
+
+          | Property | Value |
+          |---|---|
+          | **Run Number** | \`${{ github.run_number }}\` |
+          | **Network** | \`testnet\` |
+          | **Timestamp** | \`$(date -u +%Y-%m-%dT%H:%M:%SZ)\` |
+          | **Admin Public Key** | \`${{ steps.configure-identity.outputs.admin_address }}\` |
+
+          ### 📦 Deployed Contracts
+
+          | Contract | Contract ID |
+          |---|---|
+          | **lineproof-enrollment** | \`${{ steps.deploy-enrollment.outputs.contract_id }}\` |
+          | **lineproof-identity** | \`${{ steps.deploy-identity.outputs.contract_id }}\` |
+          | **lineproof-escrow** | \`${{ steps.deploy-escrow.outputs.contract_id }}\` |
+          | **lineproof-queue** | \`${{ steps.deploy-queue.outputs.contract_id }}\` |
+          | **lineproof-queue-factory** | \`${{ steps.deploy-factory.outputs.contract_id }}\` |
+
+          ### ⚙️ Initialization Status
+          - ✅ \`lineproof-identity\` initialized with admin \`${{ steps.configure-identity.outputs.admin_address }}\`
+          - ✅ \`lineproof-queue-factory\` initialized with admin \`${{ steps.configure-identity.outputs.admin_address }}\`
+          EOF
           set -euo pipefail
           if [ "$IS_DRY_RUN" = "true" ]; then
             echo "[dry-run] would deploy lineproof_queue_factory.wasm"
@@ -294,7 +436,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: testnet-deployment-${{ github.run_number }}
-          path: deployment-summary.json
+          path: |
+            deployment-summary.json
+            backend.testnet.env
           retention-days: 30
 
       - name: Commit deployment manifest
