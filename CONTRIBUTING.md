@@ -33,6 +33,24 @@ make test
 make lint
 ```
 
+## Rust Formatting
+
+CI enforces `cargo fmt` on all Rust code. Before pushing, format locally:
+
+```bash
+cd contracts
+cargo fmt --all
+```
+
+Verify formatting without modifying files:
+
+```bash
+cd contracts
+cargo fmt --all -- --check
+```
+
+The lint CI job will fail if code is not formatted.
+
 For a fuller walkthrough, see [docs/developer-onboarding.md](docs/developer-onboarding.md).
 
 ## Repository Layout

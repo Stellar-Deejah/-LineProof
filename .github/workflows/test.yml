@@ -84,7 +84,7 @@ jobs:
         with:
           node-version: 22
       - name: Install workspace dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Build contracts (WASM target)
         run: |
           cargo build --target wasm32-unknown-unknown --release
