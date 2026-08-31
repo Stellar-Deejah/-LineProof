@@ -533,12 +533,7 @@ impl QueueImpl {
         // Apply version-specific migrations
         // This is a skeleton that can be extended with actual storage transformations
         // as the contract evolves in future versions.
-        match (from_version, to_version) {
-            // Example: (1, 2) would handle v1 -> v2 migration
-            _ => {
-                // No migration logic needed for current version transition
-            }
-        }
+        // No migration logic needed for current version transition
         // Update stored version
         env.storage().persistent().set(&version_key, &to_version);
         env.storage()
