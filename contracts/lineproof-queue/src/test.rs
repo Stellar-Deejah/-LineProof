@@ -361,6 +361,54 @@ fn test_advance_closed_queue_panics() {
 }
 
 #[test]
+#[should_panic(expected = "batch_size_must_be_positive")]
+fn test_advance_zero_batch_size_panics() {
+    let (env, admin, contract_id) = setup();
+    let config = make_config(&env, &admin);
+    let client = QueueImplClient::new(&env, &contract_id);
+    client.initialize(&admin, &config);
+    client.open_enrollment(&admin);
+
+    let user = Address::generate(&env);
+    client.enroll_position(&user);
+    client.close_enrollment(&admin);
+
+    client.advance(&admin, &0);
+}
+
+#[test]
+fn test_advance_zero_batch_size_does_not_change_queue_status() {
+    let (env, admin, contract_id) = setup();
+    let config = make_config(&env, &admin);
+    let client = QueueImplClient::new(&env, &contract_id);
+    client.initialize(&admin, &config);
+    client.open_enrollment(&admin);
+
+    let user = Address::generate(&env);
+    client.enroll_position(&user);
+    client.close_enrollment(&admin);
+
+    // advance(0) panics before any state is touched, so a subsequent
+    // advance with a real batch size must still see EnrollmentClosed —
+    // not be permanently stuck as if advance(0) had "used up" the
+    // transition into AdvancementActive.
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.advance(&admin, &0);
+    }));
+    assert!(result.is_err());
+
+    let cfg = client.get_config();
+    assert!(matches!(cfg.status, QueueStatus::EnrollmentClosed));
+
+    // The queue must still be advanceable afterwards — advance(0) must not
+    // have bricked it.
+    let advanced = client.advance(&admin, &1);
+    assert_eq!(advanced.len(), 1);
+    let cfg = client.get_config();
+    assert!(matches!(cfg.status, QueueStatus::AdvancementActive));
+}
+
+#[test]
 #[should_panic(expected = "enrollment can only be opened from draft state")]
 fn test_reopen_closed_queue_panics() {
     let (env, admin, contract_id) = setup();
