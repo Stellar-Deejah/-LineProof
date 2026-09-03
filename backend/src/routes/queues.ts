@@ -19,8 +19,8 @@ const CreateQueueSchema = z.object({
   slug: z
     .string()
     .min(1)
-    .max(64)
-    .regex(SLUG_PATTERN, 'Slug must be lowercase alphanumeric words separated by single hyphens'),
+    .max(9, 'Slug must contain only alphanumeric characters and hyphens, up to 9 characters')
+    .regex(SLUG_PATTERN, 'Slug must contain only alphanumeric characters and hyphens, up to 9 characters'),
   maxPositions: z.number().int().positive(),
   advancementRule: z.enum(['FIFO', 'Priority', 'VerifiableRandomness']).optional(),
   escrowRequired: z.boolean().optional(),
