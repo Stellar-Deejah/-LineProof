@@ -66,13 +66,11 @@ impl Escrow for EscrowImpl {
         }
         let created_at = env.ledger().timestamp();
         let config_key = Self::config_key(&env, &queue_id);
-        let config: EscrowConfig = env.storage().persistent().get(&config_key).unwrap_or(EscrowConfig {
-            queue_id: queue_id.clone(),
-            min_deposit: 0,
-            max_deposit: i128::MAX,
-            hold_period_days: 30,
-            admin: caller.clone(),
-        });
+        let config: EscrowConfig = env
+            .storage()
+            .persistent()
+            .get(&config_key)
+            .unwrap_or_else(|| panic!("escrow_not_configured"));
         if amount < config.min_deposit || amount > config.max_deposit {
             panic!("amount outside configured bounds");
         }
@@ -177,6 +175,12 @@ impl Escrow for EscrowImpl {
 
     fn set_config(env: Env, admin: Address, config: EscrowConfig) {
         admin.require_auth();
+        if config.min_deposit > config.max_deposit {
+            panic!("min_deposit_exceeds_max");
+        }
+        if config.hold_period_days == 0 {
+            panic!("hold_period_must_be_positive");
+        }
         let key = Self::config_key(&env, &config.queue_id);
         env.storage().persistent().set(&key, &config);
         env.storage()

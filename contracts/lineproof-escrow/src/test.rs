@@ -1,4 +1,4 @@
-use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Env, Symbol};
 
 use crate::{EscrowConfig, EscrowImpl, EscrowImplClient, EscrowStatus};
 
@@ -30,6 +30,37 @@ fn test_set_and_get_config() {
     assert_eq!(loaded.min_deposit, 100i128);
     assert_eq!(loaded.max_deposit, 1000i128);
     assert_eq!(loaded.hold_period_days, 30);
+}
+
+#[test]
+#[should_panic(expected = "min_deposit_exceeds_max")]
+fn test_set_config_rejects_min_exceeding_max() {
+    let (env, admin, contract_id) = setup();
+    let client = EscrowImplClient::new(&env, &contract_id);
+    let mut config = make_config(&env, &admin);
+    config.min_deposit = 2000i128;
+    config.max_deposit = 1000i128;
+    client.set_config(&admin, &config);
+}
+
+#[test]
+#[should_panic(expected = "hold_period_must_be_positive")]
+fn test_set_config_rejects_zero_hold_period() {
+    let (env, admin, contract_id) = setup();
+    let client = EscrowImplClient::new(&env, &contract_id);
+    let mut config = make_config(&env, &admin);
+    config.hold_period_days = 0;
+    client.set_config(&admin, &config);
+}
+
+#[test]
+#[should_panic(expected = "escrow_not_configured")]
+fn test_deposit_rejects_unconfigured_queue() {
+    let (env, _admin, contract_id) = setup();
+    let client = EscrowImplClient::new(&env, &contract_id);
+    let user = Address::generate(&env);
+    let asset = Address::generate(&env);
+    client.deposit(&user, &Symbol::new(&env, "unconfigured_queue"), &500i128, &asset);
 }
 
 #[test]
@@ -128,12 +159,17 @@ fn test_expire_updates_status() {
     let (env, admin, contract_id) = setup();
     let client = EscrowImplClient::new(&env, &contract_id);
     let mut config = make_config(&env, &admin);
-    config.hold_period_days = 0; // expires immediately
+    config.hold_period_days = 1;
     client.set_config(&admin, &config);
     let queue_id = Symbol::new(&env, "sneaker_drop");
     let user = Address::generate(&env);
     let asset = Address::generate(&env);
     client.deposit(&user, &queue_id, &200i128, &asset);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp += 86400 * 2;
+    });
+
     client.expire(&user, &queue_id);
     let record = client.get_record(&user, &queue_id).unwrap();
     assert!(matches!(record.status, EscrowStatus::Expired));
@@ -192,13 +228,17 @@ fn test_total_held_decrements_on_expire() {
     let (env, admin, contract_id) = setup();
     let client = EscrowImplClient::new(&env, &contract_id);
     let mut config = make_config(&env, &admin);
-    config.hold_period_days = 0; // expires immediately
+    config.hold_period_days = 1;
     client.set_config(&admin, &config);
     let queue_id = Symbol::new(&env, "sneaker_drop");
     let user = Address::generate(&env);
     let asset = Address::generate(&env);
     client.deposit(&user, &queue_id, &200i128, &asset);
     assert_eq!(client.get_total_held(&queue_id), 200i128);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp += 86400 * 2;
+    });
 
     client.expire(&user, &queue_id);
     assert_eq!(client.get_total_held(&queue_id), 0i128);
@@ -207,10 +247,6 @@ fn test_total_held_decrements_on_expire() {
 #[test]
 #[should_panic(expected = "amount outside configured bounds")]
 fn test_deposit_below_min_panics() {
-    // Requires a config with min_deposit > 0: the default fallback config
-    // (used when no config has been set) has min_deposit = 0, so every
-    // positive amount clears the lower bound and this case is unreachable
-    // without an explicit config.
     let (env, admin, contract_id) = setup();
     let client = EscrowImplClient::new(&env, &contract_id);
     client.set_config(&admin, &make_config(&env, &admin));
@@ -225,12 +261,17 @@ fn test_expire_double_panics_with_specific_message() {
     let (env, admin, contract_id) = setup();
     let client = EscrowImplClient::new(&env, &contract_id);
     let mut config = make_config(&env, &admin);
-    config.hold_period_days = 0; // expires immediately
+    config.hold_period_days = 1;
     client.set_config(&admin, &config);
     let queue_id = Symbol::new(&env, "sneaker_drop");
     let user = Address::generate(&env);
     let asset = Address::generate(&env);
     client.deposit(&user, &queue_id, &200i128, &asset);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp += 86400 * 2;
+    });
+
     client.expire(&user, &queue_id);
     client.expire(&user, &queue_id);
 }
