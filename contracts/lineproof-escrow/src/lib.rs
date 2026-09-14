@@ -223,7 +223,8 @@ impl EscrowImpl {
     fn decrement_total(env: &Env, queue_id: &Symbol, amount: i128) {
         let total_key = Self::total_key(env, queue_id);
         let current: i128 = env.storage().persistent().get(&total_key).unwrap_or(0);
-        env.storage().persistent().set(&total_key, &(current - amount));
+        let new_total = current.saturating_sub(amount);
+        env.storage().persistent().set(&total_key, &new_total);
         env.storage()
             .persistent()
             .extend_ttl(&total_key, TTL_THRESHOLD, TTL_EXTEND_TO);

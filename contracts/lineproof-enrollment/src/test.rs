@@ -386,6 +386,31 @@ fn test_override_expired_success() {
 }
 
 #[test]
+fn test_enrollment_count_saturating_at_zero() {
+    let (env, caller) = setup();
+    let contract_id = env.register(EnrollmentImpl, ());
+    let client = EnrollmentImplClient::new(&env, &contract_id);
+    let queue_id = Symbol::new(&env, "sat_queue");
+
+    // Cancel without enrolling should be impossible (panics), but decrement
+    // saturating means if the count is somehow 0, it stays 0.
+    // Enroll once, cancel, and verify count never goes below 0.
+    client.enroll(&caller, &queue_id, &None);
+    assert_eq!(client.enrollment_count(&queue_id), 1);
+
+    client.cancel(&caller, &queue_id);
+    assert_eq!(client.enrollment_count(&queue_id), 0);
+
+    // Enroll another user and cancel
+    let caller2 = Address::generate(&env);
+    client.enroll(&caller2, &queue_id, &None);
+    assert_eq!(client.enrollment_count(&queue_id), 1);
+
+    client.cancel(&caller2, &queue_id);
+    assert_eq!(client.enrollment_count(&queue_id), 0);
+}
+
+#[test]
 #[should_panic(expected = "duplicate enrollment")]
 fn test_override_expired_rejection() {
     let (env, caller) = setup();

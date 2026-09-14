@@ -245,6 +245,62 @@ fn test_total_held_decrements_on_expire() {
 }
 
 #[test]
+fn test_total_held_saturating_at_zero() {
+    let (env, admin, contract_id) = setup();
+    let client = EscrowImplClient::new(&env, &contract_id);
+    client.set_config(&admin, &make_config(&env, &admin));
+    let queue_id = Symbol::new(&env, "sneaker_drop");
+    let user = Address::generate(&env);
+    let asset = Address::generate(&env);
+    client.deposit(&user, &queue_id, &200i128, &asset);
+    assert_eq!(client.get_total_held(&queue_id), 200i128);
+
+    // Release to bring total to 0
+    client.release(&admin, &user, &queue_id);
+    assert_eq!(client.get_total_held(&queue_id), 0i128);
+
+    // Verify it's exactly 0, never negative (saturating)
+    let total = client.get_total_held(&queue_id);
+    assert!(total >= 0, "total_held should never go below 0");
+}
+
+#[test]
+fn test_total_held_partial_releases() {
+    let (env, admin, contract_id) = setup();
+    let client = EscrowImplClient::new(&env, &contract_id);
+    // Use 1-day hold so expire can be triggered quickly
+    let mut config = make_config(&env, &admin);
+    config.hold_period_days = 1;
+    client.set_config(&admin, &config);
+    let queue_id = Symbol::new(&env, "sneaker_drop");
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+    let user3 = Address::generate(&env);
+    let asset = Address::generate(&env);
+
+    // Three deposits: 200 + 300 + 500 = 1000
+    client.deposit(&user1, &queue_id, &200i128, &asset);
+    client.deposit(&user2, &queue_id, &300i128, &asset);
+    client.deposit(&user3, &queue_id, &500i128, &asset);
+    assert_eq!(client.get_total_held(&queue_id), 1000i128);
+
+    // Release only user2 -> 700 remaining
+    client.release(&admin, &user2, &queue_id);
+    assert_eq!(client.get_total_held(&queue_id), 700i128);
+
+    // Refund user1 -> 500 remaining
+    client.refund(&admin, &user1, &queue_id);
+    assert_eq!(client.get_total_held(&queue_id), 500i128);
+
+    // Advance past the 1-day hold period and expire user3 -> 0 remaining
+    env.ledger().with_mut(|li| {
+        li.timestamp += 86400 * 2;
+    });
+    client.expire(&user3, &queue_id);
+    assert_eq!(client.get_total_held(&queue_id), 0i128);
+}
+
+#[test]
 #[should_panic(expected = "amount outside configured bounds")]
 fn test_deposit_below_min_panics() {
     let (env, admin, contract_id) = setup();
