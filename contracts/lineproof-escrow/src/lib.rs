@@ -4,8 +4,6 @@ use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol};
 const TTL_THRESHOLD: u32 = 10_000;
 /// TTL extension target: extend to this many ledgers (~1 year at 5s/ledger)
 const TTL_EXTEND_TO: u32 = 6_307_200;
-/// Additional TTL buffer for escrow records beyond hold_period_days (in ledgers)
-const ESCROW_TTL_BUFFER: u32 = 86_400; // ~5 days at 5s/ledger
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
