@@ -5,6 +5,7 @@ import { readQueueOnChain } from '../contracts/index.js';
 import { SlugSchema } from '../schemas/slug.js';
 import { NotFoundError, ValidationError } from '../errors/index.js';
 import { QueueStatus } from '../schemas/queueStatus.js';
+import { paginate, MAX_LIMIT } from '../utils/pagination.js';
 
 const router: IRouter = Router();
 
@@ -35,7 +36,7 @@ const GetQueuesQuerySchema = z.object({
   status: z.enum(Object.values(QueueStatus) as [string, ...string[]]).optional(),
   limit: z.preprocess(
     (val) => (val === undefined ? undefined : Number(val)),
-    z.number().int().min(1).max(100).default(20)
+    z.number().int().min(1).max(MAX_LIMIT).optional()
   ),
   cursor: z.string().optional(),
 }).strict();
@@ -57,38 +58,7 @@ router.get('/', (req, res: Response): Response => {
     filtered = queues.filter((q) => q.status === status);
   }
 
-  const total = filtered.length;
-  let startIndex = 0;
-
-  if (cursor) {
-    try {
-      const lastSlug = Buffer.from(cursor, 'base64').toString('utf8');
-      const index = filtered.findIndex((q) => q.slug === lastSlug);
-      if (index === -1) {
-        return res.status(400).json({ message: 'Invalid cursor: slug not found' });
-      }
-      startIndex = index + 1;
-    } catch (err) {
-      return res.status(400).json({ message: 'Invalid cursor format' });
-    }
-  }
-
-  const paginated = filtered.slice(startIndex, startIndex + limit);
-
-  let nextCursor: string | null = null;
-  if (paginated.length > 0) {
-    const lastItem = paginated[paginated.length - 1];
-    const lastIndex = filtered.findIndex((q) => q.slug === lastItem.slug);
-    if (lastIndex < total - 1) {
-      nextCursor = Buffer.from(lastItem.slug).toString('base64');
-    }
-  }
-
-  return res.json({
-    items: paginated,
-    nextCursor,
-    total,
-  });
+  return res.json(paginate(filtered, { resolvedCursor: cursor, limit }));
 });
 
 router.get('/:id', async (req: Request<{ id: string }>, res: Response, next): Promise<void> => {

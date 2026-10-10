@@ -58,11 +58,44 @@ describe('Enrollments Routes', () => {
   });
 
   describe('GET /api/enrollments/queue/:queueId', () => {
-    it('returns 200 with list', async () => {
+    it('returns 200 with paginated envelope', async () => {
       vi.mocked(enrollmentService.getEnrollmentsByQueue).mockReturnValue([{ queueId: 'q1', identity: VALID_IDENTITY } as any]);
       const res = await request(app).get('/api/enrollments/queue/q1');
       expect(res.status).toBe(200);
-      expect(res.body).toEqual([{ queueId: 'q1', identity: VALID_IDENTITY }]);
+      expect(res.body).toEqual({
+        items: [{ queueId: 'q1', identity: VALID_IDENTITY }],
+        nextCursor: null,
+        total: 1,
+      });
+    });
+
+    it('returns 400 for invalid limit', async () => {
+      const res = await request(app).get('/api/enrollments/queue/q1?limit=notanumber');
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 for limit exceeding max', async () => {
+      const res = await request(app).get('/api/enrollments/queue/q1?limit=9999');
+      expect(res.status).toBe(400);
+    });
+
+    it('paginates multi-page results and returns nextCursor', async () => {
+      const records = Array.from({ length: 3 }, (_, i) => ({ queueId: 'q1', identity: VALID_IDENTITY, pos: i } as any));
+      vi.mocked(enrollmentService.getEnrollmentsByQueue).mockReturnValue(records);
+
+      // First page
+      const page1 = await request(app).get('/api/enrollments/queue/q1?limit=2');
+      expect(page1.status).toBe(200);
+      expect(page1.body.items).toHaveLength(2);
+      expect(page1.body.total).toBe(3);
+      expect(page1.body.nextCursor).not.toBeNull();
+
+      // Second page using cursor from first
+      vi.mocked(enrollmentService.getEnrollmentsByQueue).mockReturnValue(records);
+      const page2 = await request(app).get(`/api/enrollments/queue/q1?limit=2&cursor=${page1.body.nextCursor}`);
+      expect(page2.status).toBe(200);
+      expect(page2.body.items).toHaveLength(1);
+      expect(page2.body.nextCursor).toBeNull();
     });
   });
 
@@ -73,11 +106,39 @@ describe('Enrollments Routes', () => {
       expect(res.status).toBe(404);
     });
 
-    it('returns 200 with list if found', async () => {
+    it('returns 200 with paginated envelope if found', async () => {
       vi.mocked(enrollmentService.getEnrollmentsByIdentity).mockReturnValue([{ queueId: 'q1', identity: VALID_IDENTITY } as any]);
       const res = await request(app).get(`/api/enrollments/${VALID_IDENTITY}`);
       expect(res.status).toBe(200);
-      expect(res.body).toEqual([{ queueId: 'q1', identity: VALID_IDENTITY }]);
+      expect(res.body).toEqual({
+        items: [{ queueId: 'q1', identity: VALID_IDENTITY }],
+        nextCursor: null,
+        total: 1,
+      });
+    });
+
+    it('returns 400 for invalid limit', async () => {
+      const res = await request(app).get(`/api/enrollments/${VALID_IDENTITY}?limit=notanumber`);
+      expect(res.status).toBe(400);
+    });
+
+    it('paginates multi-page results and returns nextCursor', async () => {
+      const records = Array.from({ length: 3 }, (_, i) => ({ queueId: `q${i}`, identity: VALID_IDENTITY } as any));
+      vi.mocked(enrollmentService.getEnrollmentsByIdentity).mockReturnValue(records);
+
+      // First page
+      const page1 = await request(app).get(`/api/enrollments/${VALID_IDENTITY}?limit=2`);
+      expect(page1.status).toBe(200);
+      expect(page1.body.items).toHaveLength(2);
+      expect(page1.body.total).toBe(3);
+      expect(page1.body.nextCursor).not.toBeNull();
+
+      // Second page using cursor from first
+      vi.mocked(enrollmentService.getEnrollmentsByIdentity).mockReturnValue(records);
+      const page2 = await request(app).get(`/api/enrollments/${VALID_IDENTITY}?limit=2&cursor=${page1.body.nextCursor}`);
+      expect(page2.status).toBe(200);
+      expect(page2.body.items).toHaveLength(1);
+      expect(page2.body.nextCursor).toBeNull();
     });
   });
 });
