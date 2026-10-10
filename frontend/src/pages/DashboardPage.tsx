@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
@@ -25,21 +25,30 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const lookup = async () => {
-    if (!publicKey.trim()) return;
+  const lookup = useCallback(async () => {
+    const key = publicKey.trim();
+    if (!key) return;
+
+    // Cancel any in-flight lookup so stale responses can't overwrite newer results.
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const { signal } = controller;
+
     setLoading(true);
     setError(null);
     setSearched(true);
     try {
-      const res = await fetch(`${API_BASE}/enrollments/${encodeURIComponent(publicKey.trim())}`);
+      const res = await fetch(`${API_BASE}/enrollments/${encodeURIComponent(key)}`, { signal });
       if (res.status === 404) { setRecords([]); return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as PositionRecord[];
       if (Array.isArray(data)) {
         const enriched = await Promise.all(data.map(async (r) => {
           try {
-            const eRes = await fetch(`${API_BASE}/escrow/${encodeURIComponent(`${r.queueId}:${r.identity}`)}`);
+            const eRes = await fetch(`${API_BASE}/escrow/${encodeURIComponent(`${r.queueId}:${r.identity}`)}`, { signal });
             if (eRes.ok) {
               const eData = await eRes.json();
               r.escrowStatus = eData.status;
@@ -52,11 +61,19 @@ export default function DashboardPage() {
         setRecords([]);
       }
     } catch (err: unknown) {
+      // A cancelled request is expected when the user triggers a new lookup
+      // or the component unmounts — don't surface it as an error.
+      if (signal.aborted) return;
       setError(err instanceof Error ? err.message : 'Network error');
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
-  };
+  }, [publicKey]);
+
+  // Abort any in-flight request when the component unmounts.
+  useEffect(() => {
+    return () => abortControllerRef.current?.abort();
+  }, []);
 
   const active = records.filter((r) => !r.cancelled);
 
