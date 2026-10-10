@@ -12,6 +12,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - [sdk] Removed duplicate `generateKeypair()` from `types.ts` (unused; use `generateTestKeypair()` from `@lineproof/sdk/testing` instead)
 
 ### Added
+- [backend] Graceful SIGTERM/SIGINT shutdown with configurable connection-drain timeout
 - [contracts/escrow] `get_total_held` function tracking running deposit totals per queue
 - [contracts/escrow] `Expired` status now correctly persisted in `expire()` and guarded against non-Active records
 - [contracts/queue] `enroll_position` with capacity enforcement, `cancel_position`, and `total_enrolled`

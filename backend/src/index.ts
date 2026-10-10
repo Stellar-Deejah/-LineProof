@@ -4,6 +4,7 @@ import { config, validateStartupConfig } from './config.js';
 import { lineproofClient } from './contracts/lineproofClient.js';
 import { corsOriginsFromEnvironment } from './middleware/corsConfig.js';
 import { EventIndexer } from './services/eventIndexer.js';
+import { createGracefulShutdown, registerShutdownSignals } from './shutdown.js';
 
 validateStartupConfig(config);
 const allowedOrigins = corsOriginsFromEnvironment();
@@ -24,8 +25,15 @@ if (config.contractsConfigured) {
 }
 
 const port = config.port;
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`LineProof backend listening on :${port} [${config.nodeEnv}]`);
 });
 
-export { app, eventIndexer };
+const gracefulShutdown = createGracefulShutdown({
+  server,
+  eventIndexer,
+  timeoutMs: config.shutdownTimeoutMs,
+});
+registerShutdownSignals(gracefulShutdown);
+
+export { app, eventIndexer, server, gracefulShutdown };
